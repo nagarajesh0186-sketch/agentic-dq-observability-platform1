@@ -105,3 +105,7 @@ docker-compose.override.yml
 generated_dags/
 generated_sql/
 rule_outputs/
+logs_api.txt
+logs_api_err.txt
+logs_ui.txt
+logs_ui_err.txt
