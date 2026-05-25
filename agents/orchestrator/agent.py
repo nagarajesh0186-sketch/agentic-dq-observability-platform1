@@ -129,12 +129,7 @@ class OrchestratorAgent(BaseAgent):
         state: WorkflowState,
         custom_context: str | None = None,
     ) -> WorkflowState:
-        """Stage 3: Generate LLM-inferred business rules.
-
-        Passes the technical rules already generated for each table as
-        anti-context so the LLM avoids duplicating them. Forwards any
-        Dataplex column tags collected during metadata discovery.
-        """
+        """Stage 3: Generate LLM-inferred business rules."""
         state.advance_stage(WorkflowStage.BUSINESS_RULES)
 
         if not state.rule_set:
@@ -231,7 +226,6 @@ class OrchestratorAgent(BaseAgent):
             state.rule_set.technical_rules = []
             state.rule_set.business_rules = []
 
-        # Auto-generate SQL and store as BigQuery stored procedures immediately on approval
         if status == ApprovalStatus.APPROVED and state.rule_set:
             self._log.info("auto_sql_generation_triggered", session_id=state.session_id)
             try:
@@ -239,6 +233,63 @@ class OrchestratorAgent(BaseAgent):
             except Exception as exc:
                 state.record_error("auto_sql_generation", str(exc))
                 self._log.error("auto_sql_generation_failed", error=str(exc))
+
+        await self._persist_state(state)
+        return state
+
+    async def process_approval_2(
+        self,
+        state: WorkflowState,
+        status: ApprovalStatus,
+        approver_id: str,
+        approver_email: str | None = None,
+        comments: str | None = None,
+    ) -> WorkflowState:
+        """Process checkpoint 2 — DQ results review before production sign-off.
+
+        CP2 APPROVED → refresh reporting views → mark workflow COMPLETE
+        CP2 REJECTED → halt, flag for remediation
+        """
+        self._log.info(
+            "checkpoint_2_processing",
+            session_id=state.session_id,
+            status=status.value,
+            approver=approver_id,
+        )
+
+        # Record approval in audit log
+        await self._approval_agent.process_approval(
+            session_id=state.session_id,
+            stage="approval_2",
+            status=status,
+            approver_id=approver_id,
+            approver_email=approver_email,
+            comments=comments,
+        )
+
+        state.approval_2_status = status
+        state.updated_at = datetime.utcnow()
+
+        if status == ApprovalStatus.APPROVED:
+            self._log.info("checkpoint_2_approved_running_reporting", session_id=state.session_id)
+            try:
+                # Refresh all reporting views in BigQuery
+                state = await self.run_stage_reporting(state)
+                self._log.info("checkpoint_2_complete", session_id=state.session_id)
+            except Exception as exc:
+                state.record_error("checkpoint_2_reporting", str(exc))
+                self._log.error("checkpoint_2_reporting_failed", error=str(exc))
+        else:
+            # REJECTED — log and halt
+            self._log.warning(
+                "checkpoint_2_rejected",
+                session_id=state.session_id,
+                comments=comments,
+            )
+            state.record_error(
+                "checkpoint_2_rejected",
+                f"CP2 rejected by {approver_id}: {comments or 'No comments provided'}",
+            )
 
         await self._persist_state(state)
         return state
@@ -256,7 +307,6 @@ class OrchestratorAgent(BaseAgent):
 
         try:
             run_id = f"run_{uuid.uuid4().hex[:12]}"
-            # Only generate SQL for rules the user has approved (is_active=True)
             active_rules = [r for r in state.rule_set.all_rules if r.is_active]
             updated_rules = await self._sql_agent.run(
                 rules=active_rules,
@@ -269,7 +319,6 @@ class OrchestratorAgent(BaseAgent):
             rules_with_sql = sum(1 for r in updated_rules if r.generated_sql)
             self._log.info("sql_generation_done", active_rules=len(active_rules), rules_with_sql=rules_with_sql)
 
-            # Persist rule configs (including generated SQL) to dq_rule_config
             await self._sql_agent.persist_rules_to_bigquery(
                 updated_rules,
                 session_id=state.session_id,
@@ -277,7 +326,6 @@ class OrchestratorAgent(BaseAgent):
                 bq_client=self._bq_client,
             )
 
-            # Create ONE consolidated stored procedure for all approved rules
             try:
                 sp_name = await self._sql_agent.create_consolidated_stored_procedure(
                     updated_rules,
@@ -288,7 +336,6 @@ class OrchestratorAgent(BaseAgent):
                     state.consolidated_sp_name = sp_name
                     self._log.info("consolidated_sp_stored", sp=sp_name)
             except Exception as sp_exc:
-                # SP creation failed (e.g. BQ credentials issue) — log but don't block workflow
                 state.record_error("consolidated_sp_creation", str(sp_exc))
                 self._log.error("consolidated_sp_creation_failed", error=str(sp_exc))
         except Exception as exc:
@@ -323,7 +370,7 @@ class OrchestratorAgent(BaseAgent):
         return state
 
     async def run_stage_reporting(self, state: WorkflowState) -> WorkflowState:
-        """Stage 10: Create BigQuery reporting views."""
+        """Stage 10: Create BigQuery reporting views — triggered by CP2 approval."""
         if state.approval_2_status != ApprovalStatus.APPROVED:
             state.record_error("reporting", "Cannot proceed — Checkpoint 2 not approved")
             return state

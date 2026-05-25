@@ -1379,7 +1379,114 @@ elif page == "Approvals":
                     st.error(f"DAG generation failed: {dag_resp.get('error')}")
         st.markdown('</div>', unsafe_allow_html=True)
 
+# ── Checkpoint 2 — DQ Results Review + Production Sign-off ────────
+    if cp1 == "approved":
+        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+        c2_status_html = badge(cp2.upper())
+        section_heading("Checkpoint 2 — Production Sign-off", "Review DQ results before certifying data for production", border_color="#6366f1")
+        st.markdown(f"Status: {c2_status_html}", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
+        # Fetch DQ results for review
+        dq_review_resp = api_get(f"/api/v1/approvals/dq-results/{session_id}")
+        dq_review = dq_review_resp.get("data", {}) if dq_review_resp.get("success") else {}
+
+        if dq_review:
+            summary = dq_review.get("summary", {})
+            failures = dq_review.get("failures", [])
+            prod_ready = dq_review.get("production_ready", False)
+            recommendation = dq_review.get("recommendation", "")
+
+            # KPI metrics
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Rules", summary.get("total_rules", 0))
+            c2.metric("Passed", summary.get("passed", 0))
+            c3.metric("Failed", summary.get("failed", 0))
+            c4.metric("Health Score", f"{summary.get('health_score', 0):.0f}/100")
+
+            # Production readiness banner
+            if prod_ready:
+                st.success(f"{recommendation}")
+            else:
+                st.error(f"{recommendation}")
+
+            # Failure details table
+            if failures:
+                st.markdown("<br>", unsafe_allow_html=True)
+                section_heading("Failed Rules — Review Before Approving", border_color="#ef4444")
+                df_cp2 = pd.DataFrame(failures)
+                show_cp2 = [c for c in ["severity", "rule_layer", "rule_name", "rule_type",
+                                         "table_name", "column_name", "observed_value",
+                                         "expected_value", "failure_count"] if c in df_cp2.columns]
+                st.dataframe(df_cp2[show_cp2], use_container_width=True, height=280)
+
+                crit = sum(1 for f in failures if f.get("severity") == "FAIL")
+                warn = sum(1 for f in failures if f.get("severity") == "WARN")
+                tech_fail = sum(1 for f in failures if f.get("rule_layer") == "technical")
+                biz_fail = sum(1 for f in failures if f.get("rule_layer") == "business")
+                st.markdown(
+                    f'<div style="font-size:0.82rem;color:#64748b;margin-top:0.5rem">'
+                    f'{badge("FAIL")} {crit} critical &nbsp;&nbsp;'
+                    f'{badge("WARN")} {warn} warnings &nbsp;&nbsp;'
+                    f'🔧 {tech_fail} technical &nbsp;&nbsp;'
+                    f'🤖 {biz_fail} business (AI)</div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No DQ results available yet. Run DQ checks first via Execute DQ Checks or wait for the Composer DAG to complete.")
+
+        # CP2 approval form — only show if not yet approved
+        if cp2 != "approved":
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.form("cp2_form"):
+                approver_id_2 = st.text_input("Approver ID / Email", placeholder="data-steward@company.com", key="cp2_approver")
+                decision_2 = st.radio(
+                    "Production Sign-off Decision",
+                    ["APPROVED", "REJECTED"],
+                    horizontal=True,
+                    key="cp2_dec",
+                    help="APPROVED = certify data for production use. REJECTED = flag for remediation."
+                )
+                comments_2 = st.text_area(
+                    "Comments",
+                    placeholder="DQ results reviewed. Health score acceptable for production." if not failures else "Critical failures found — rejecting until resolved.",
+                    key="cp2_comments"
+                )
+                submitted_2 = st.form_submit_button("Submit Checkpoint 2", type="primary")
+
+            if submitted_2:
+                if not approver_id_2:
+                    st.error("Approver ID is required.")
+                else:
+                    with st.spinner(
+                        "Certifying data for production and refreshing reporting views..."
+                        if decision_2 == "APPROVED"
+                        else "Recording rejection..."
+                    ):
+                        resp2 = api_post("/api/v1/approvals/submit", {
+                            "session_id": session_id,
+                            "stage": "approval_2",
+                            "status": decision_2.lower(),
+                            "approver_id": approver_id_2,
+                            "comments": comments_2,
+                            "rule_modifications": [],
+                        })
+                    if resp2.get("success"):
+                        if decision_2 == "APPROVED":
+                            st.success("✅ Checkpoint 2 approved. Data certified for production. Reporting views refreshed.")
+                        else:
+                            st.error("❌ Checkpoint 2 rejected. Data NOT certified for production.")
+                        st.rerun()
+                    else:
+                        st.error(f"Submission failed: {resp2.get('error')}")
+        else:
+            st.success("✅ Checkpoint 2 approved — data certified for production use. Workflow complete.")
+            if summary:
+                st.caption(
+                    f"Certified at health score {summary.get('health_score', 0):.0f}/100 "
+                    f"with {summary.get('passed', 0)}/{summary.get('total_rules', 0)} rules passing."
+                )
+        st.markdown('</div>', unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════
 # PAGE: OBSERVABILITY DASHBOARD
 # ══════════════════════════════════════════════════════════════════════
