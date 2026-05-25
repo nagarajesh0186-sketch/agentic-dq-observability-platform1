@@ -1,0 +1,91 @@
+steps:
+  # Step 1: Install dependencies and run linting
+  - name: 'python:3.11-slim'
+    id: 'lint'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install ruff mypy &&
+        ruff check . --select E,F,I,N,W,UP,B --ignore B008 &&
+        echo "Linting passed"
+
+  # Step 2: Run unit tests
+  - name: 'python:3.11-slim'
+    id: 'unit-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -e ".[dev]" &&
+        pytest tests/unit/ -v --cov=. --cov-report=term-missing --cov-fail-under=80
+    waitFor: ['lint']
+
+  # Step 3: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/agentic-dq-api:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/agentic-dq-api:latest'
+      - '-f'
+      - 'docker/Dockerfile'
+      - '.'
+    waitFor: ['unit-tests']
+
+  # Step 4: Security scan with Trivy
+  - name: 'aquasec/trivy:latest'
+    id: 'security-scan'
+    args:
+      - 'image'
+      - '--exit-code'
+      - '1'
+      - '--severity'
+      - 'CRITICAL'
+      - '--no-progress'
+      - 'gcr.io/$PROJECT_ID/agentic-dq-api:$COMMIT_SHA'
+    waitFor: ['build-image']
+
+  # Step 5: Push image to GCR
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/agentic-dq-api:$COMMIT_SHA'
+    waitFor: ['security-scan']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-latest'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/agentic-dq-api:latest'
+    waitFor: ['push-image']
+
+  # Step 6: Deploy to Cloud Run (production only)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-cloud-run'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'agentic-dq-api'
+      - '--image=gcr.io/$PROJECT_ID/agentic-dq-api:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--quiet'
+    waitFor: ['push-latest']
+
+substitutions:
+  _REGION: 'us-central1'
+  _SERVICE_NAME: 'agentic-dq-api'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1800s'
+
+images:
+  - 'gcr.io/$PROJECT_ID/agentic-dq-api:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/agentic-dq-api:latest'

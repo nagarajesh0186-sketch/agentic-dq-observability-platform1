@@ -1,0 +1,456 @@
+Here is a polished, production-grade version of your prompt:
+
+---
+
+# Agentic Data Quality & Observability Platform — Build Specification
+
+You are a principal-level AI Engineer, Data Architect, and Data Quality Platform Engineer.
+
+Build a **production-grade, enterprise-ready Agentic Data Quality (DQ) and Observability Platform** using the Claude API, Google Cloud Platform, and modern data engineering tooling. Every component must be fully implemented, connected, and executable — no stubs, no toy code.
+
+---
+
+## Primary Objective
+
+Deliver an AI-powered Data Quality & Observability Agent that:
+
+- Accepts BigQuery datasets and tables as input
+- Discovers metadata via BigQuery `INFORMATION_SCHEMA` and optional Dataplex lineage
+- Automatically generates technical DQ rules, business DQ rules, monitoring rules, freshness checks, schema drift checks, and referential integrity checks
+- Uses Claude API reasoning to infer intelligent business rules, recommend thresholds, detect anomalies, and dynamically generate BigQuery SQL
+- Persists DQ results to standardized BigQuery output tables
+- Integrates natively with Airflow / Cloud Composer
+- Emits alerts and structured observability signals
+- Produces BI-consumable reporting views (Looker, Looker Studio, Power BI, Tableau)
+- Enforces human-in-the-loop approval checkpoints before critical transitions
+- Operates as a stateful agentic workflow with memory, tool use, retry handling, and orchestration
+
+---
+
+## Agent Architecture
+
+Implement a modular multi-agent system. Each agent has a single responsibility and communicates through a shared state layer.
+
+| Agent | Responsibility |
+|---|---|
+| **Orchestrator Agent** | Coordinates stage sequencing, manages state, handles retries and failures |
+| **Metadata Discovery Agent** | Queries `INFORMATION_SCHEMA`, profiles columns, infers semantics |
+| **Technical Rule Engine Agent** | Generates standard DQ rules (completeness, uniqueness, validity, etc.) |
+| **Business Rule Recommendation Agent** | Uses Claude reasoning to infer business-specific rules from column semantics |
+| **SQL Generation Agent** | Produces parameterized, idempotent, retry-safe BigQuery SQL |
+| **Validation Agent** | Executes generated SQL and captures pass/fail results |
+| **Monitoring Agent** | Tracks SLAs, freshness, runtime, anomalies, and health scores |
+| **DAG Integration Agent** | Injects DQ tasks into existing Airflow DAGs or generates standalone DAGs |
+| **Reporting Agent** | Creates BigQuery views and BI-ready aggregations |
+| **Alerting Agent** | Routes failures to Slack and email with severity-aware escalation |
+| **Human Approval Agent** | Manages approval checkpoints, persists decisions, maintains audit trail |
+
+The orchestration layer must support:
+
+- Multi-step reasoning with context carryover
+- Tool calling (BigQuery, Dataplex, Airflow, alerting APIs)
+- Persistent memory and state management
+- Retry and circuit-breaker patterns
+- Async and parallel rule generation
+- Workflow resume and rollback
+
+---
+
+## Repository Structure
+
+Generate the complete repository with the following structure. Every directory must contain fully implemented code.
+
+```
+agentic-dq-observability-platform/
+│
+├── agents/
+│   ├── orchestrator/
+│   ├── metadata_agent/
+│   ├── technical_dq_agent/
+│   ├── business_dq_agent/
+│   ├── sql_generation_agent/
+│   ├── validation_agent/
+│   ├── monitoring_agent/
+│   ├── reporting_agent/
+│   ├── alerting_agent/
+│   └── approval_agent/
+│
+├── tools/
+│   ├── bigquery/           # BQ client wrappers, schema discovery, execution
+│   ├── dataplex/           # Lineage, catalog, tag templates
+│   ├── sql_tools/          # SQL builder, parameterization, validation
+│   ├── airflow/            # DAG injection, operator factories
+│   └── alerts/             # Slack, email, PagerDuty connectors
+│
+├── prompts/                # Versioned prompt templates per agent
+├── workflows/              # LangGraph workflow definitions
+├── schemas/                # Pydantic models, BigQuery table schemas
+├── dq_rules/               # Rule definitions (YAML + JSON)
+├── sql_templates/          # Jinja2 SQL templates per rule type
+├── configs/                # Environment and feature configs
+├── api/                    # FastAPI application
+├── ui/                     # Optional operational dashboard
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── infra/
+│   ├── terraform/          # GCP resource provisioning
+│   └── cloud_build/        # CI/CD pipeline definitions
+├── docker/
+│   ├── Dockerfile
+│   └── docker-compose.yml
+└── docs/
+    ├── architecture/
+    ├── setup/
+    └── api/
+```
+
+---
+
+## Agent Workflow — Stage-by-Stage Implementation
+
+Implement each stage sequentially. Do not skip stages or approval gates.
+
+---
+
+### Stage 1 — Scope & Metadata Resolution
+
+**Input:** `project_id`, `dataset_id`, `table_names[]`
+
+**Actions:**
+- Query `INFORMATION_SCHEMA.COLUMNS`, `INFORMATION_SCHEMA.TABLE_OPTIONS`, `INFORMATION_SCHEMA.PARTITIONS`
+- Retrieve: column names, data types, nullability, partition/clustering keys, row counts, PK/FK candidates
+- Optionally query Dataplex for tags, sensitivity classifications, and lineage
+- Fall back to `INFORMATION_SCHEMA` if Dataplex is unavailable
+- Run column-level profiling: distinct counts, null rates, min/max, sample values, cardinality
+- Infer column semantics using Claude (e.g., detect email, phone, currency, date, status fields)
+
+**Output:**
+- `metadata_summary.json` — structured table and column metadata
+- `profiling_report.json` — per-column statistical profile
+- `semantic_inference.json` — Claude-inferred business types per column
+
+---
+
+### Stage 2 — Technical DQ Rule Generation
+
+Automatically generate standard rules across the following categories. For every rule, assign: `rule_id`, `severity`, `threshold`, `execution_frequency`, and executable BigQuery SQL.
+
+| Category | Rules |
+|---|---|
+| **Completeness** | Not-null checks, mandatory field enforcement, sparse data detection |
+| **Uniqueness** | Duplicate detection, composite PK uniqueness |
+| **Validity** | Data type validation, regex conformity, allowed values / enum checks |
+| **Integrity** | Referential integrity, cross-table consistency |
+| **Freshness** | Late arrival detection, SLA breach checks, timestamp lag |
+| **Volume** | Row count anomalies, sudden drops/spikes vs. baseline |
+| **Schema Drift** | Column additions/removals, data type changes |
+| **Consistency** | Cross-column validation, derived field correctness |
+
+---
+
+### Stage 3 — Business Rule Recommendation (Claude Reasoning)
+
+Use Claude to infer intelligent business rules from column semantics and profiling data.
+
+**Examples of inferred rules:**
+- `email` columns → RFC 5322 regex validation
+- `status` columns → allowed values enforcement
+- `amount` / `revenue` columns → positive range checks, outlier detection
+- `date` columns → future/past boundary constraints
+- `country` / `state` columns → reference lookup conformity
+- `PII` columns → masking / anonymization verification
+
+**Claude must:**
+- Use chain-of-thought reasoning to justify each recommendation
+- Output structured JSON with rule metadata and SQL
+- Assign severity and recommended thresholds
+- Suggest anomaly detection strategies for numeric and temporal columns
+
+Implement versioned prompt templates for: rule inference, SQL generation, severity classification, and anomaly strategy selection.
+
+---
+
+### Stage 4 — Business Rule Elicitation
+
+Present recommended rules to the user interactively.
+
+**Allow the user to:**
+- Accept, modify, or reject any recommended rule
+- Add custom business rules
+- Set severity: `INFO | WARN | FAIL`
+- Set custom thresholds and execution schedules
+
+**Persist approved rules to:**
+- YAML rule files (human-readable, version-controlled)
+- JSON rule files (machine-consumable)
+- BigQuery `dq_rule_config` table (runtime lookup)
+
+---
+
+### Stage 5 — Checkpoint 1: Human Approval (Rule Set)
+
+**Before SQL generation**, enforce a full approval gate.
+
+- Display all rules with metadata (severity, threshold, schedule, SQL preview)
+- Require explicit approval
+- Support in-place edits before approval
+- Version the approved rule set with a `rule_set_version_id`
+- Write approval decision, approver identity, and timestamp to `dq_audit_log`
+
+**Do not proceed to Stage 6 without recorded approval.**
+
+---
+
+### Stage 6 — DQ SQL Generation
+
+Generate executable BigQuery SQL for every approved rule.
+
+**Requirements:**
+- Parameterized queries (no hardcoded values)
+- Idempotent execution (safe to re-run)
+- Retry-safe design
+- Full exception handling and structured logging
+- Every execution writes results to the standardized `dq_results` table
+
+**Supported output formats:**
+- Pure BigQuery SQL
+- BigQuery Stored Procedures
+- dbt test YAML
+- Dataplex Auto DQ configuration YAML
+
+**`dq_results` table schema:**
+
+```sql
+CREATE TABLE IF NOT EXISTS `{project}.{dataset}.dq_results` (
+    run_id              STRING       NOT NULL,
+    rule_id             STRING       NOT NULL,
+    project_id          STRING       NOT NULL,
+    dataset_name        STRING       NOT NULL,
+    table_name          STRING       NOT NULL,
+    column_name         STRING,
+    rule_type           STRING       NOT NULL,
+    severity            STRING       NOT NULL,  -- INFO | WARN | FAIL
+    status              STRING       NOT NULL,  -- PASS | FAIL | ERROR | SKIPPED
+    observed_value      STRING,
+    expected_value      STRING,
+    threshold_value     STRING,
+    failure_count       INT64,
+    execution_time      TIMESTAMP    NOT NULL,
+    execution_duration_seconds FLOAT64,
+    query_executed      STRING,
+    created_at          TIMESTAMP    NOT NULL    DEFAULT CURRENT_TIMESTAMP()
+)
+PARTITION BY DATE(execution_time)
+CLUSTER BY table_name, rule_type, severity;
+```
+
+---
+
+### Stage 7 — DAG Integration
+
+Ask the user: *Does an existing Airflow / Cloud Composer DAG own this pipeline?*
+
+**If YES:**
+- Inject DQ task groups into the existing DAG
+- Add `BigQueryCheckOperator` or `BigQueryInsertJobOperator` tasks
+- Configure upstream/downstream dependencies correctly
+
+**If NO:**
+- Generate a standalone Airflow DAG with full DQ orchestration
+- Optionally configure Cloud Scheduler for serverless scheduling
+
+**Generate:**
+- Complete DAG Python file with Airflow 2.x patterns
+- Task dependency graph
+- Deployment instructions for Cloud Composer
+
+---
+
+### Stage 8 — Monitoring & Observability
+
+Implement enterprise-grade observability.
+
+**Monitoring capabilities:**
+- SLA breach detection
+- Freshness lag monitoring
+- Rule execution latency tracking
+- Failure trend analysis (daily, weekly)
+- Table health scoring (0–100) based on pass rate, severity weights, and freshness
+- Statistical anomaly detection on volume and quality metrics
+
+**Alerting:**
+- Slack webhook integration (severity-aware message formatting)
+- Email integration via SendGrid / SMTP
+- Escalation rules configurable per table or rule
+
+**Instrumentation:**
+- OpenTelemetry traces for agent steps
+- Structured JSON logging (compatible with Cloud Logging)
+- Metrics emitted to Cloud Monitoring
+
+---
+
+### Stage 9 — Checkpoint 2: Human Approval (Monitoring Config)
+
+**Before activating monitoring**, enforce a second approval gate.
+
+Present:
+- Monitoring schedules per rule
+- Alert thresholds and escalation rules
+- Notification channel configs
+- SLA definitions
+
+Require explicit approval. Persist config and approval to `dq_audit_log`.
+
+**Do not activate monitoring or alerting without recorded approval.**
+
+---
+
+### Stage 10 — Reporting Layer
+
+Generate BigQuery views and materialized views for BI consumption.
+
+**Required views:**
+
+| View | Content |
+|---|---|
+| `v_dq_executive_kpi` | Overall pass rate, critical failures, health score, trend |
+| `v_dq_table_health` | Per-table health score, last run time, open failures |
+| `v_dq_trend_analysis` | Daily/weekly pass/fail trends per rule type |
+| `v_dq_freshness_report` | Freshness lag per table vs. SLA target |
+| `v_dq_failed_rules` | All active failures with severity and time-to-resolve |
+
+**All views must:**
+- Work with Looker, Looker Studio, Power BI, and Tableau without modification
+- Include materialized view variants with scheduled refresh SQL
+- Expose standard metrics: pass percentage, failure count, critical failure count, mean freshness lag, health score, daily trend
+
+---
+
+## Claude API Implementation
+
+- **Model:** `claude-sonnet-4-6` (default), with upgrade path to Opus for complex reasoning tasks
+- **Features required:** streaming responses, tool use, structured JSON output, prompt caching
+- **Reliability:** exponential backoff retry logic, rate limit handling, token budget management
+- **Prompt architecture:** versioned system prompts and task prompts per agent, stored in `prompts/`
+- **Context management:** sliding window summarization for long workflows, state compression between stages
+
+---
+
+## Memory & State Management
+
+Persist all workflow state to BigQuery config tables. The agent must support workflow resume, multi-session continuity, state replay, and rollback.
+
+**Required state tables:**
+
+| Table | Content |
+|---|---|
+| `dq_workflow_state` | Current stage, session ID, approval status, timestamps |
+| `dq_rule_config` | All approved rules with full metadata |
+| `dq_rule_versions` | Full version history of every rule set |
+| `dq_audit_log` | All human approvals, edits, and decisions with actor and timestamp |
+| `dq_execution_log` | Per-run execution records with status and duration |
+| `dq_monitoring_config` | Active monitoring schedules, thresholds, and alert targets |
+
+---
+
+## FastAPI Endpoints
+
+Expose the following REST API surface:
+
+```
+POST   /api/v1/discovery/start          — Initiate metadata discovery
+GET    /api/v1/discovery/{session_id}   — Retrieve discovery results
+
+POST   /api/v1/rules/generate           — Trigger rule generation
+GET    /api/v1/rules/{session_id}       — Retrieve generated rules
+PUT    /api/v1/rules/{rule_id}          — Update a rule
+DELETE /api/v1/rules/{rule_id}          — Remove a rule
+
+POST   /api/v1/approvals/submit         — Submit approval decision
+GET    /api/v1/approvals/{session_id}   — Get approval status
+
+POST   /api/v1/sql/generate             — Generate SQL for approved rules
+POST   /api/v1/sql/execute              — Execute DQ SQL
+
+POST   /api/v1/monitoring/configure     — Configure monitoring
+GET    /api/v1/monitoring/status        — Get monitoring status
+
+GET    /api/v1/reporting/health         — Table health scores
+GET    /api/v1/reporting/kpi            — Executive KPI snapshot
+GET    /api/v1/reporting/trends         — Trend data
+```
+
+All endpoints must include: request validation (Pydantic), authentication (API key or OAuth), structured error responses, and OpenAPI documentation.
+
+---
+
+## Non-Functional Requirements
+
+| Dimension | Requirement |
+|---|---|
+| **Scalability** | Handle thousands of tables; parallel rule generation; async execution throughout |
+| **Reliability** | Exponential backoff retries; circuit breakers; graceful degradation; recovery workflows |
+| **Maintainability** | Modular agents; reusable Jinja2 prompt and SQL templates; config-driven rule definitions |
+| **Extensibility** | Plugin architecture for new rule types; multi-cloud abstraction layer for future Azure/AWS support |
+| **Security** | Secret Manager integration for credentials; no hardcoded keys; column-level PII flagging |
+| **Observability** | OpenTelemetry traces; structured JSON logs; Cloud Monitoring metrics; health dashboards |
+
+---
+
+## Implementation Standards
+
+Write all code as a principal engineer would for a Fortune 500 production deployment:
+
+- Python 3.11+, fully typed with Pydantic v2 models
+- Async-first (`asyncio`, `aiohttp`, async BigQuery client)
+- Dependency injection throughout
+- Structured logging via `structlog`
+- Comprehensive error handling — no bare `except` blocks
+- Unit tests with `pytest` and `pytest-asyncio`; integration tests against a BigQuery sandbox
+- Docker-compose for local development; Terraform for GCP infrastructure
+- CI/CD via Cloud Build with lint, test, security scan, and deploy stages
+
+---
+
+## Full Deliverables Checklist
+
+The implementation must include all of the following:
+
+- [ ] Complete multi-agent architecture with all agents implemented
+- [ ] Full repository structure with working code in every module
+- [ ] Versioned prompt templates for all agents
+- [ ] Jinja2 SQL templates for all rule types
+- [ ] BigQuery schema definitions for all output and config tables
+- [ ] Dataplex integration with `INFORMATION_SCHEMA` fallback
+- [ ] Airflow DAG generation and injection logic
+- [ ] Two human-in-the-loop approval checkpoints with audit logging
+- [ ] Monitoring framework with Slack and email alerting
+- [ ] Five BI-consumable BigQuery reporting views
+- [ ] FastAPI REST API with full OpenAPI documentation
+- [ ] Docker and docker-compose setup for local development
+- [ ] Terraform modules for GCP provisioning
+- [ ] Cloud Build CI/CD pipeline
+- [ ] Unit test suite (>80% coverage target)
+- [ ] Integration test suite with BigQuery sandbox fixtures
+- [ ] Sample workflow demonstrating end-to-end execution
+- [ ] Example DQ rule library (20+ rules across all categories)
+- [ ] Example generated SQL for each rule type
+- [ ] Example reporting queries and dashboard specs
+- [ ] `README.md` with architecture overview, setup instructions, and usage guide
+- [ ] Architecture decision records in `docs/architecture/`
+
+---
+
+## Success Criteria
+
+The delivered platform must be sophisticated enough for:
+
+- Production deployment in a regulated enterprise environment
+- Use as a portfolio or technical showcase project
+- Live demonstration to enterprise data engineering and governance stakeholders
+- Real-world DQ automation across multi-dataset BigQuery environments
+- AI-assisted data governance and observability workflows
+
+Every component must be fully connected. No placeholder implementations. No `# TODO` comments left unresolved.

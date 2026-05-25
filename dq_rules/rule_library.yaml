@@ -1,0 +1,359 @@
+# Agentic DQ Platform — Rule Library
+# 25+ standard DQ rules across all categories
+# Every rule is a template; parameters are filled at generation time.
+
+version: "1.0.0"
+rules:
+
+  # ================================================================
+  # COMPLETENESS (COMP)
+  # ================================================================
+  - rule_id: "COMP_001"
+    rule_name: "Not Null Check"
+    category: "completeness"
+    description: "Ensures column has no null values (strict enforcement)"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "completeness_check.sql.j2"
+    parameters:
+      threshold: 0.0
+      threshold_pct: 0.0
+    applicable_when:
+      is_nullable: false
+
+  - rule_id: "COMP_002"
+    rule_name: "Low Null Rate Check"
+    category: "completeness"
+    description: "Null rate should not exceed 5% for important fields"
+    severity: "WARN"
+    threshold: 0.05
+    execution_frequency: "daily"
+    sql_template: "completeness_check.sql.j2"
+    parameters:
+      threshold: 0.05
+      threshold_pct: 5.0
+    applicable_when:
+      is_nullable: true
+
+  - rule_id: "COMP_003"
+    rule_name: "Critical Field Completeness"
+    category: "completeness"
+    description: "Critical business fields must be >= 99% complete"
+    severity: "FAIL"
+    threshold: 0.01
+    execution_frequency: "hourly"
+    sql_template: "completeness_check.sql.j2"
+    parameters:
+      threshold: 0.01
+      threshold_pct: 1.0
+    applicable_when:
+      business_type: ["id", "email", "amount", "status"]
+
+  - rule_id: "COMP_004"
+    rule_name: "Sparse Field Alert"
+    category: "completeness"
+    description: "Alert when optional field has more than 80% nulls (sparse data detection)"
+    severity: "INFO"
+    threshold: 0.80
+    execution_frequency: "weekly"
+    sql_template: "completeness_check.sql.j2"
+    parameters:
+      threshold: 0.80
+      threshold_pct: 80.0
+    applicable_when:
+      is_nullable: true
+
+  - rule_id: "COMP_005"
+    rule_name: "PII Field Completeness"
+    category: "completeness"
+    description: "PII fields should have high completeness for regulatory compliance"
+    severity: "WARN"
+    threshold: 0.02
+    execution_frequency: "daily"
+    sql_template: "completeness_check.sql.j2"
+    parameters:
+      threshold: 0.02
+      threshold_pct: 2.0
+    applicable_when:
+      pii_likely: true
+
+  # ================================================================
+  # UNIQUENESS (UNIQ)
+  # ================================================================
+  - rule_id: "UNIQ_001"
+    rule_name: "Primary Key Uniqueness"
+    category: "uniqueness"
+    description: "Primary key column must have no duplicate values"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "uniqueness_check.sql.j2"
+    parameters: {}
+    applicable_when:
+      business_type: ["id"]
+      cardinality_ratio_min: 0.9
+
+  - rule_id: "UNIQ_002"
+    rule_name: "Composite Key Uniqueness"
+    category: "uniqueness"
+    description: "Composite key columns together must be unique"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "uniqueness_check.sql.j2"
+    parameters:
+      composite: true
+
+  - rule_id: "UNIQ_003"
+    rule_name: "Email Uniqueness"
+    category: "uniqueness"
+    description: "Email addresses should be unique within user/customer tables"
+    severity: "WARN"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "uniqueness_check.sql.j2"
+    parameters: {}
+    applicable_when:
+      business_type: ["email"]
+
+  # ================================================================
+  # VALIDITY (VALD)
+  # ================================================================
+  - rule_id: "VALD_001"
+    rule_name: "Email Format Validation"
+    category: "validity"
+    description: "Email columns must conform to RFC 5322 format"
+    severity: "WARN"
+    threshold: 0.99
+    execution_frequency: "daily"
+    sql_template: "validity_regex_check.sql.j2"
+    parameters:
+      regex_pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+      threshold: 0.99
+    applicable_when:
+      business_type: ["email"]
+
+  - rule_id: "VALD_002"
+    rule_name: "Phone Format Validation"
+    category: "validity"
+    description: "Phone numbers must match E.164 international format"
+    severity: "WARN"
+    threshold: 0.95
+    execution_frequency: "daily"
+    sql_template: "validity_regex_check.sql.j2"
+    parameters:
+      regex_pattern: "^\\+?[1-9]\\d{6,14}$"
+      threshold: 0.95
+    applicable_when:
+      business_type: ["phone"]
+
+  - rule_id: "VALD_003"
+    rule_name: "Status Enum Values"
+    category: "validity"
+    description: "Status column must contain only defined allowed values"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "enum_values_check.sql.j2"
+    parameters:
+      allowed_values: ["ACTIVE", "INACTIVE", "PENDING", "DELETED", "SUSPENDED"]
+    applicable_when:
+      business_type: ["status", "flag"]
+
+  - rule_id: "VALD_004"
+    rule_name: "URL Format Validation"
+    category: "validity"
+    description: "URL columns must contain valid HTTP/HTTPS URLs"
+    severity: "INFO"
+    threshold: 0.95
+    execution_frequency: "weekly"
+    sql_template: "validity_regex_check.sql.j2"
+    parameters:
+      regex_pattern: "^https?://[a-zA-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]+"
+      threshold: 0.95
+    applicable_when:
+      business_type: ["url"]
+
+  - rule_id: "VALD_005"
+    rule_name: "Positive Amount Check"
+    category: "validity"
+    description: "Amount/revenue columns must not contain negative values"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "range_check.sql.j2"
+    parameters:
+      min_value: 0.0
+      has_min: true
+      has_max: false
+    applicable_when:
+      business_type: ["amount", "currency"]
+
+  # ================================================================
+  # FRESHNESS (FRSH)
+  # ================================================================
+  - rule_id: "FRSH_001"
+    rule_name: "Daily Freshness SLA"
+    category: "freshness"
+    description: "Table must have data loaded within last 24 hours"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "hourly"
+    sql_template: "freshness_check.sql.j2"
+    parameters:
+      max_lag_hours: 24.0
+    applicable_when:
+      has_timestamp_column: true
+
+  - rule_id: "FRSH_002"
+    rule_name: "Hourly Freshness SLA"
+    category: "freshness"
+    description: "Real-time tables must have data loaded within last 2 hours"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "hourly"
+    sql_template: "freshness_check.sql.j2"
+    parameters:
+      max_lag_hours: 2.0
+    applicable_when:
+      has_timestamp_column: true
+      update_frequency: "hourly"
+
+  - rule_id: "FRSH_003"
+    rule_name: "Late Arrival Warning"
+    category: "freshness"
+    description: "Warn when data is approaching SLA threshold (80% of max lag)"
+    severity: "WARN"
+    threshold: 0.0
+    execution_frequency: "hourly"
+    sql_template: "freshness_check.sql.j2"
+    parameters:
+      max_lag_hours: 18.0
+    applicable_when:
+      has_timestamp_column: true
+
+  # ================================================================
+  # VOLUME (VOLU)
+  # ================================================================
+  - rule_id: "VOLU_001"
+    rule_name: "Minimum Row Count"
+    category: "volume"
+    description: "Table must contain at least the expected minimum number of rows"
+    severity: "WARN"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "volume_check.sql.j2"
+    parameters:
+      min_rows: 1
+      has_max_rows: false
+
+  - rule_id: "VOLU_002"
+    rule_name: "Volume Anomaly Detection"
+    category: "volume"
+    description: "Row count must not drop more than 30% from baseline or spike more than 200%"
+    severity: "WARN"
+    threshold: 0.3
+    execution_frequency: "daily"
+    sql_template: "volume_check.sql.j2"
+    parameters:
+      min_rows: 0
+      has_max_rows: false
+
+  # ================================================================
+  # SCHEMA DRIFT (SCHM)
+  # ================================================================
+  - rule_id: "SCHM_001"
+    rule_name: "Schema Column Drift"
+    category: "schema_drift"
+    description: "Alert if columns are added or removed from baseline schema"
+    severity: "WARN"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "schema_drift_check.sql.j2"
+    parameters:
+      baseline_columns_json: "[]"
+
+  - rule_id: "SCHM_002"
+    rule_name: "Data Type Change Detection"
+    category: "schema_drift"
+    description: "Alert if column data types change from baseline"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "schema_drift_check.sql.j2"
+    parameters:
+      baseline_columns_json: "[]"
+
+  # ================================================================
+  # REFERENTIAL INTEGRITY (INTG)
+  # ================================================================
+  - rule_id: "INTG_001"
+    rule_name: "Foreign Key Integrity"
+    category: "integrity"
+    description: "Foreign key values must exist in the referenced parent table"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "referential_integrity_check.sql.j2"
+    parameters:
+      ref_project: ""
+      ref_dataset: ""
+      ref_table: ""
+      ref_column: ""
+
+  - rule_id: "INTG_002"
+    rule_name: "Soft Delete Referential Consistency"
+    category: "integrity"
+    description: "References to soft-deleted records should be flagged"
+    severity: "INFO"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "referential_integrity_check.sql.j2"
+    parameters:
+      ref_project: ""
+      ref_dataset: ""
+      ref_table: ""
+      ref_column: ""
+
+  # ================================================================
+  # CONSISTENCY (CONS)
+  # ================================================================
+  - rule_id: "CONS_001"
+    rule_name: "Date Field Consistency"
+    category: "consistency"
+    description: "start_date must be earlier than end_date or expiry_date"
+    severity: "WARN"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "range_check.sql.j2"
+    parameters:
+      has_min: true
+      has_max: false
+
+  - rule_id: "CONS_002"
+    rule_name: "No Future Dates"
+    category: "consistency"
+    description: "Date fields should not contain future dates (unless business-justified)"
+    severity: "INFO"
+    threshold: 0.01
+    execution_frequency: "daily"
+    sql_template: "range_check.sql.j2"
+    parameters:
+      has_min: false
+      has_max: true
+    applicable_when:
+      business_type: ["date", "timestamp"]
+
+  - rule_id: "CONS_003"
+    rule_name: "Country Code Validity"
+    category: "consistency"
+    description: "Country codes must be valid ISO 3166-1 alpha-2 codes"
+    severity: "INFO"
+    threshold: 0.95
+    execution_frequency: "weekly"
+    sql_template: "enum_values_check.sql.j2"
+    parameters:
+      allowed_values: ["US", "GB", "CA", "AU", "DE", "FR", "IN", "JP", "CN", "BR"]
+    applicable_when:
+      business_type: ["country"]

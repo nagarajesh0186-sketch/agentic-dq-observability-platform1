@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DQ Rule Definition",
+  "description": "JSON Schema for validating DQ rule definitions",
+  "type": "object",
+  "required": ["rule_id", "rule_name", "category", "description", "severity", "threshold", "execution_frequency"],
+  "additionalProperties": false,
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_]+$",
+      "minLength": 3,
+      "maxLength": 64,
+      "description": "Unique rule identifier (e.g., COMP_001)"
+    },
+    "rule_name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "description": "Human-readable rule name"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["completeness", "uniqueness", "validity", "integrity", "freshness", "volume", "schema_drift", "consistency"],
+      "description": "DQ rule category"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1000,
+      "description": "Clear description of what the rule validates"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["INFO", "WARN", "FAIL"],
+      "description": "Failure severity: FAIL=blocking, WARN=warning, INFO=informational"
+    },
+    "threshold": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Acceptance threshold as a rate (0.0=no tolerance, 1.0=full tolerance)"
+    },
+    "execution_frequency": {
+      "type": "string",
+      "enum": ["hourly", "daily", "weekly", "monthly"],
+      "description": "How often to execute this rule"
+    },
+    "sql_template": {
+      "type": "string",
+      "pattern": "\\.sql\\.j2$",
+      "description": "Jinja2 SQL template filename"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Rule-specific parameters passed to the SQL template"
+    },
+    "applicable_when": {
+      "type": "object",
+      "description": "Conditions determining when this rule auto-applies",
+      "properties": {
+        "is_nullable": { "type": "boolean" },
+        "business_type": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "data_type": { "type": "string" },
+        "cardinality_ratio_min": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "cardinality_ratio_max": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "pii_likely": { "type": "boolean" },
+        "has_timestamp_column": { "type": "boolean" }
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Business justification for this rule"
+    }
+  }
+}

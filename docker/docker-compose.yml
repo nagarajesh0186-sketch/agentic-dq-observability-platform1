@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  dq-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: agentic-dq-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ..:/app
+      - ~/.config/gcloud:/home/appuser/.config/gcloud:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - dq-network
+
+  # Optional: Local Prometheus for metrics (uncomment to use)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - dq-network
+
+networks:
+  dq-network:
+    driver: bridge

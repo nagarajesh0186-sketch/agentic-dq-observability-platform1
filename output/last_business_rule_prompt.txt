@@ -1,0 +1,653 @@
+Analyse the following BigQuery table and generate BUSINESS LOGIC DQ rules.
+
+Table: `project-cbc8eabe-34e0-44df-a5e.sample_data.customer_profiles`
+
+Description: "Sample customer profiles table for DQ testing"
+Approx. rows: 30
+Partition column: date_of_birth
+
+## Schema (each column: name, type, nullable, plus any description / partition / clustering / PII / business-type hints available)
+[
+  {
+    "column": "customer_id",
+    "type": "INT64",
+    "nullable": false,
+    "business_type": "id"
+  },
+  {
+    "column": "first_name",
+    "type": "STRING",
+    "nullable": false,
+    "business_type": "name",
+    "pii_likely": true
+  },
+  {
+    "column": "last_name",
+    "type": "STRING",
+    "nullable": false,
+    "business_type": "name",
+    "pii_likely": true
+  },
+  {
+    "column": "email",
+    "type": "STRING",
+    "nullable": true,
+    "business_type": "email",
+    "pii_likely": true
+  },
+  {
+    "column": "phone_number",
+    "type": "STRING",
+    "nullable": true,
+    "business_type": "phone",
+    "pii_likely": true
+  },
+  {
+    "column": "date_of_birth",
+    "type": "DATE",
+    "nullable": true,
+    "partition_key": true,
+    "business_type": "date",
+    "pii_likely": true
+  },
+  {
+    "column": "gender",
+    "type": "STRING",
+    "nullable": true,
+    "business_type": "status"
+  },
+  {
+    "column": "account_status",
+    "type": "STRING",
+    "nullable": false,
+    "business_type": "status"
+  },
+  {
+    "column": "credit_score",
+    "type": "INT64",
+    "nullable": true,
+    "business_type": "amount"
+  },
+  {
+    "column": "account_balance",
+    "type": "NUMERIC",
+    "nullable": true,
+    "business_type": "currency"
+  },
+  {
+    "column": "country_code",
+    "type": "STRING",
+    "nullable": false,
+    "business_type": "country"
+  },
+  {
+    "column": "created_at",
+    "type": "TIMESTAMP",
+    "nullable": false,
+    "business_type": "timestamp"
+  },
+  {
+    "column": "updated_at",
+    "type": "TIMESTAMP",
+    "nullable": false,
+    "business_type": "timestamp"
+  }
+]
+
+## Column Profiles (statistics)
+[
+  {
+    "column_name": "customer_id",
+    "data_type": "INT64",
+    "null_rate": 0.0,
+    "distinct_count": 29,
+    "cardinality_ratio": 0.9667,
+    "min_value": "1001",
+    "max_value": "1029",
+    "avg_value": 1014.5333,
+    "sample_values": [
+      "1007",
+      "1013",
+      "1006",
+      "1003",
+      "1002"
+    ]
+  },
+  {
+    "column_name": "first_name",
+    "data_type": "STRING",
+    "null_rate": 0.0,
+    "distinct_count": 30,
+    "cardinality_ratio": 1.0,
+    "min_value": "",
+    "max_value": "Zach",
+    "avg_value": null,
+    "sample_values": [
+      "Grace",
+      "Mia",
+      "Frank",
+      "Carol",
+      "Bob"
+    ]
+  },
+  {
+    "column_name": "last_name",
+    "data_type": "STRING",
+    "null_rate": 0.0,
+    "distinct_count": 30,
+    "cardinality_ratio": 1.0,
+    "min_value": "Allen",
+    "max_value": "Young",
+    "avg_value": null,
+    "sample_values": [
+      "Wilson",
+      "White",
+      "Miller",
+      "Williams",
+      "Johnson"
+    ]
+  },
+  {
+    "column_name": "email",
+    "data_type": "STRING",
+    "null_rate": 0.0667,
+    "distinct_count": 28,
+    "cardinality_ratio": 0.9333,
+    "min_value": "alice2@example.com",
+    "max_value": "yara@example.com",
+    "avg_value": null,
+    "sample_values": [
+      "grace@example.com",
+      "mia@example.com",
+      "carol@example.com",
+      "bob@example.com",
+      "eve@example.com"
+    ]
+  },
+  {
+    "column_name": "phone_number",
+    "data_type": "STRING",
+    "null_rate": 0.0667,
+    "distinct_count": 28,
+    "cardinality_ratio": 0.9333,
+    "min_value": "+1-555-0101",
+    "max_value": "+91-98765432",
+    "avg_value": null,
+    "sample_values": [
+      "+1-555-0107",
+      "+1-555-0113",
+      "+44-20-1234",
+      "+1-555-0102",
+      "+91-98765432"
+    ]
+  },
+  {
+    "column_name": "date_of_birth",
+    "data_type": "DATE",
+    "null_rate": 0.0333,
+    "distinct_count": 28,
+    "cardinality_ratio": 0.9333,
+    "min_value": "1850-05-01",
+    "max_value": "2030-01-01",
+    "avg_value": null,
+    "sample_values": [
+      "1993-11-19",
+      "1975-06-30",
+      "1978-11-05",
+      "1990-07-22",
+      "1988-09-12"
+    ]
+  },
+  {
+    "column_name": "gender",
+    "data_type": "STRING",
+    "null_rate": 0.0333,
+    "distinct_count": 3,
+    "cardinality_ratio": 0.1,
+    "min_value": "FEMALE",
+    "max_value": "UNKNOWN",
+    "avg_value": null,
+    "sample_values": [
+      "FEMALE",
+      "MALE",
+      "FEMALE",
+      "MALE",
+      "FEMALE"
+    ]
+  },
+  {
+    "column_name": "account_status",
+    "data_type": "STRING",
+    "null_rate": 0.0,
+    "distinct_count": 6,
+    "cardinality_ratio": 0.2,
+    "min_value": "ACTIVE",
+    "max_value": "SUSPENDED",
+    "avg_value": null,
+    "sample_values": [
+      "PENDING",
+      "ACTIVE",
+      "ACTIVE",
+      "INACTIVE",
+      "ACTIVE"
+    ]
+  },
+  {
+    "column_name": "credit_score",
+    "data_type": "INT64",
+    "null_rate": 0.1333,
+    "distinct_count": 22,
+    "cardinality_ratio": 0.7333,
+    "min_value": "-50",
+    "max_value": "900",
+    "avg_value": 663.0769,
+    "sample_values": [
+      "-50",
+      "630",
+      "590",
+      "680",
+      "710"
+    ]
+  },
+  {
+    "column_name": "account_balance",
+    "data_type": "NUMERIC",
+    "null_rate": 0.0333,
+    "distinct_count": 27,
+    "cardinality_ratio": 0.9,
+    "min_value": "-500",
+    "max_value": "45000",
+    "avg_value": 7367.2931,
+    "sample_values": [
+      "1200",
+      "450",
+      "300",
+      "12000.5",
+      "22000"
+    ]
+  },
+  {
+    "column_name": "country_code",
+    "data_type": "STRING",
+    "null_rate": 0.0,
+    "distinct_count": 8,
+    "cardinality_ratio": 0.2667,
+    "min_value": "AU",
+    "max_value": "USA",
+    "avg_value": null,
+    "sample_values": [
+      "AU",
+      "CA",
+      "CA",
+      "GB",
+      "GB"
+    ]
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "TIMESTAMP",
+    "null_rate": 0.0,
+    "distinct_count": 30,
+    "cardinality_ratio": 1.0,
+    "min_value": "2023-01-10 09:00:00+00",
+    "max_value": "2024-11-03 10:00:00+00",
+    "avg_value": null,
+    "sample_values": [
+      "2023-07-15 10:00:00+00",
+      "2024-01-10 10:00:00+00",
+      "2023-06-01 09:00:00+00",
+      "2023-03-01 07:45:00+00",
+      "2023-02-14 11:30:00+00"
+    ]
+  },
+  {
+    "column_name": "updated_at",
+    "data_type": "TIMESTAMP",
+    "null_rate": 0.0,
+    "distinct_count": 27,
+    "cardinality_ratio": 0.9,
+    "min_value": "2024-09-15 11:00:00+00",
+    "max_value": "2024-11-05 12:00:00+00",
+    "avg_value": null,
+    "sample_values": [
+      "2024-11-03 08:00:00+00",
+      "2024-11-01 09:00:00+00",
+      "2024-11-02 12:00:00+00",
+      "2024-09-20 14:00:00+00",
+      "2024-10-15 08:00:00+00"
+    ]
+  }
+]
+
+## Inferred Column Semantics
+{
+  "customer_id": {
+    "column_name": "customer_id",
+    "business_type": "id",
+    "description": "Unique identifier for the customer",
+    "pii_likely": false,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "not_null",
+      "unique"
+    ],
+    "reasoning": "Standard primary key pattern with high cardinality."
+  },
+  "first_name": {
+    "column_name": "first_name",
+    "business_type": "name",
+    "description": "Customer first name",
+    "pii_likely": true,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "not_null",
+      "no_empty_strings"
+    ],
+    "reasoning": "Direct identifier. Min value indicates potential empty string records."
+  },
+  "last_name": {
+    "column_name": "last_name",
+    "business_type": "name",
+    "description": "Customer last name",
+    "pii_likely": true,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "not_null"
+    ],
+    "reasoning": "Direct identifier."
+  },
+  "email": {
+    "column_name": "email",
+    "business_type": "email",
+    "description": "Customer contact email address",
+    "pii_likely": true,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "valid_email_format"
+    ],
+    "reasoning": "Matches email semantic pattern; contains PII."
+  },
+  "phone_number": {
+    "column_name": "phone_number",
+    "business_type": "phone",
+    "description": "Customer contact phone number",
+    "pii_likely": true,
+    "confidence": 0.95,
+    "recommended_rules": [
+      "valid_phone_format"
+    ],
+    "reasoning": "International phone format identified; contains PII."
+  },
+  "date_of_birth": {
+    "column_name": "date_of_birth",
+    "business_type": "date",
+    "description": "Date of birth of the customer",
+    "pii_likely": true,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "range_check (1900-01-01 to CURRENT_DATE)"
+    ],
+    "reasoning": "Data suggests unrealistic values (1850, 2030) requiring validation."
+  },
+  "gender": {
+    "column_name": "gender",
+    "business_type": "status",
+    "description": "Customer gender classification",
+    "pii_likely": false,
+    "confidence": 0.9,
+    "recommended_rules": [
+      "allowed_values (MALE, FEMALE, OTHER, UNKNOWN)"
+    ],
+    "reasoning": "Categorical field with low cardinality."
+  },
+  "account_status": {
+    "column_name": "account_status",
+    "business_type": "status",
+    "description": "Current lifecycle status of the customer account",
+    "pii_likely": false,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "not_null",
+      "allowed_values"
+    ],
+    "reasoning": "Standard operational status flag."
+  },
+  "credit_score": {
+    "column_name": "credit_score",
+    "business_type": "amount",
+    "description": "Numerical creditworthiness score",
+    "pii_likely": false,
+    "confidence": 0.9,
+    "recommended_rules": [
+      "range_check (0-850)"
+    ],
+    "reasoning": "Values like -50 indicate data quality issues (negative credit scores are typically invalid)."
+  },
+  "account_balance": {
+    "column_name": "account_balance",
+    "business_type": "currency",
+    "description": "Customer current account balance",
+    "pii_likely": false,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "range_check (>= 0 if required)"
+    ],
+    "reasoning": "Financial metric; negative values might represent debt or errors."
+  },
+  "country_code": {
+    "column_name": "country_code",
+    "business_type": "country",
+    "description": "ISO country code of the customer",
+    "pii_likely": false,
+    "confidence": 0.95,
+    "recommended_rules": [
+      "iso_country_format"
+    ],
+    "reasoning": "Contains non-standard mix (AU vs USA), suggesting a need for standardizing on ISO 3166-1 alpha-2 or alpha-3."
+  },
+  "created_at": {
+    "column_name": "created_at",
+    "business_type": "timestamp",
+    "description": "Record creation timestamp",
+    "pii_likely": false,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "not_null"
+    ],
+    "reasoning": "Audit column for record lineage."
+  },
+  "updated_at": {
+    "column_name": "updated_at",
+    "business_type": "timestamp",
+    "description": "Last modification timestamp",
+    "pii_likely": false,
+    "confidence": 1.0,
+    "recommended_rules": [
+      "check_updated_ge_created"
+    ],
+    "reasoning": "Audit column for record lineage."
+  }
+}
+
+## Existing technical rules already generated for this table — DO NOT duplicate
+[
+  {
+    "rule_id": "VOLU_customer_profiles_7aac2b",
+    "rule_name": "Volume Check: customer_profiles",
+    "category": "volume",
+    "column": null
+  },
+  {
+    "rule_id": "SCHM_customer_profiles_cdd5b4",
+    "rule_name": "Schema Drift: customer_profiles",
+    "category": "schema_drift",
+    "column": null
+  },
+  {
+    "rule_id": "COMP_customer_id_3bf08a",
+    "rule_name": "Not Null: customer_id",
+    "category": "completeness",
+    "column": "customer_id"
+  },
+  {
+    "rule_id": "UNIQ_customer_id_3d2aad",
+    "rule_name": "Uniqueness: customer_id",
+    "category": "uniqueness",
+    "column": "customer_id"
+  },
+  {
+    "rule_id": "COMP_first_name_4e74de",
+    "rule_name": "Not Null: first_name",
+    "category": "completeness",
+    "column": "first_name"
+  },
+  {
+    "rule_id": "UNIQ_first_name_d2d6cb",
+    "rule_name": "Uniqueness: first_name",
+    "category": "uniqueness",
+    "column": "first_name"
+  },
+  {
+    "rule_id": "COMP_last_name_872f06",
+    "rule_name": "Not Null: last_name",
+    "category": "completeness",
+    "column": "last_name"
+  },
+  {
+    "rule_id": "UNIQ_last_name_25a8d9",
+    "rule_name": "Uniqueness: last_name",
+    "category": "uniqueness",
+    "column": "last_name"
+  },
+  {
+    "rule_id": "VALD_EMAIL_email_52e5d6",
+    "rule_name": "Email Format: email",
+    "category": "validity",
+    "column": "email"
+  },
+  {
+    "rule_id": "COMP_account_status_01d622",
+    "rule_name": "Not Null: account_status",
+    "category": "completeness",
+    "column": "account_status"
+  },
+  {
+    "rule_id": "VALD_RANGE_credit_score_0c7b90",
+    "rule_name": "Positive Amount: credit_score",
+    "category": "validity",
+    "column": "credit_score"
+  },
+  {
+    "rule_id": "VALD_RANGE_account_balance_678059",
+    "rule_name": "Positive Amount: account_balance",
+    "category": "validity",
+    "column": "account_balance"
+  },
+  {
+    "rule_id": "COMP_country_code_d37363",
+    "rule_name": "Not Null: country_code",
+    "category": "completeness",
+    "column": "country_code"
+  },
+  {
+    "rule_id": "COMP_created_at_72cf5c",
+    "rule_name": "Not Null: created_at",
+    "category": "completeness",
+    "column": "created_at"
+  },
+  {
+    "rule_id": "UNIQ_created_at_ac8722",
+    "rule_name": "Uniqueness: created_at",
+    "category": "uniqueness",
+    "column": "created_at"
+  },
+  {
+    "rule_id": "COMP_updated_at_0ce2cc",
+    "rule_name": "Not Null: updated_at",
+    "category": "completeness",
+    "column": "updated_at"
+  },
+  {
+    "rule_id": "FRSH_customer_profiles_c0aef8",
+    "rule_name": "Freshness: customer_profiles",
+    "category": "freshness",
+    "column": "created_at"
+  }
+]
+
+## Additional Business Context (provided by analyst)
+Note: the lifetime_value column was deprecated 2025-Q4, ignore it for new rules. Also: customer_status values 'INACTIVE_30D' and 'INACTIVE_90D' are valid states.
+
+## Instructions
+Generate rules that reflect the BUSINESS PURPOSE of this table. Infer the domain (e.g. e-commerce
+orders, financial transactions, user accounts) from the table and column names, then produce rules
+that a data owner or business analyst would care about.
+
+DO NOT generate:
+  - Not-null / completeness checks (handled by technical agent)
+  - Uniqueness checks on ID columns (handled by technical agent)
+  - Email / phone / URL format checks (handled by technical agent)
+  - Freshness checks based on timestamp columns (handled by technical agent)
+  - Row-count / volume checks (handled by technical agent)
+  - Any rule that duplicates one already listed in "Existing technical rules" above
+
+Only use column names that appear in the schema above. NEVER invent column names.
+
+Return ONLY this JSON:
+{
+  "inferred_domain": "<one-line description of what this table represents>",
+  "rules": [
+    {
+      "rule_id": "BRUL_<8-char hex>",
+      "rule_name": "<concise, descriptive name>",
+      "rule_category": "<validity|integrity|consistency>",
+      "description": "<plain English: what is validated and why it can fail>",
+      "rationale": "<why this matters for the business domain inferred above>",
+      "column_name": "<primary column name from the schema, or null only for cross-column / table-level rules>",
+      "severity": "<FAIL|WARN|INFO — see severity guidance below>",
+      "threshold": <float 0.0-1.0 for rate-based rules, 0.0 for exact checks>,
+      "execution_frequency": "<hourly|daily|weekly>",
+      "parameters": <see "parameters" guidance below>
+    }
+  ]
+}
+
+## severity guidance
+Choose severity based on downstream impact, not on confidence:
+
+  FAIL  Breaking the rule means the data is wrong in a way that will produce
+        incorrect results downstream — financial reports, customer-facing
+        outputs, irreversible state transitions. Block the pipeline. Examples:
+        FK orphan, negative monetary amount, status state-machine violation.
+
+  WARN  Breaking the rule signals likely data corruption or upstream drift but
+        downstream reads can still proceed. A human should investigate within
+        a business day. Examples: percentage outside expected range, unusual
+        enum value not in the canonical set, derived-field mismatch.
+
+  INFO  Captured for monitoring / trend analysis only. No alert fires.
+        Examples: counts of rows in rarely-used optional states, observed
+        cardinality of a low-priority column.
+
+If unsure between FAIL and WARN, choose WARN. Reserve FAIL for cases where a
+downstream business decision would be measurably wrong.
+
+## parameters guidance
+Fill `parameters` based on `rule_category` so the SQL generator can render
+the rule deterministically (without calling an LLM again):
+
+  validity (regex)  →  {"regex_pattern": "<BQ-flavoured regex>", "threshold": 0.0}
+  validity (enum)   →  {"allowed_values": ["A","B","C"], "threshold": 0.0}
+  validity (range)  →  {"has_min": true, "min_value": 0, "has_max": true, "max_value": 100, "threshold": 0.0}
+  consistency       →  {"fail_condition": "<BQ row-level boolean — TRUE = row fails>", "threshold": 0.0,
+                          "expected_label": "<short human label, e.g. 'ship_date >= order_date'>"}
+  integrity (FK)    →  {"ref_project": "<proj>", "ref_dataset": "<ds>", "ref_table": "<t>", "ref_column": "<c>"}
+
+For `consistency` rules, write `fail_condition` as a row-level BigQuery
+expression using backtick-quoted column names that EXIST in the schema above:
+  "`ship_date` < `order_date`"
+  "`status` = 'SHIPPED' AND `tracking_number` IS NULL"
+  "`total_amount` <> `unit_price` * `quantity`"
+
+For `integrity` FK rules, also set `column_name` to the source FK column on
+THIS table (not the referenced column).

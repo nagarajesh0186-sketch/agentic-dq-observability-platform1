@@ -1,0 +1,126 @@
+# Business Rules Template — User-Defined DQ Rules
+# Copy this file and customize for your specific dataset
+
+version: "1.0.0"
+dataset: "your_dataset"
+table: "your_table"
+rule_set_version: "1.0.0"
+author: "data-quality-team"
+approved_by: ""
+approved_at: ""
+
+rules:
+
+  # Email format validation
+  - rule_id: "BIZ_EMAIL_001"
+    rule_name: "Customer Email Format"
+    category: "validity"
+    description: "Customer email must be a valid RFC 5322 address"
+    column_name: "email"
+    severity: "WARN"
+    threshold: 0.99
+    execution_frequency: "daily"
+    sql_template: "validity_regex_check.sql.j2"
+    rationale: "Invalid email addresses prevent customer communication and indicate data entry errors"
+    parameters:
+      regex_pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+      threshold: 0.99
+
+  # Phone format validation
+  - rule_id: "BIZ_PHONE_001"
+    rule_name: "Customer Phone Format"
+    category: "validity"
+    description: "Phone numbers must follow E.164 international format"
+    column_name: "phone_number"
+    severity: "WARN"
+    threshold: 0.95
+    execution_frequency: "daily"
+    sql_template: "validity_regex_check.sql.j2"
+    rationale: "Standardized phone formats are required for SMS campaign delivery"
+    parameters:
+      regex_pattern: "^\\+?[1-9]\\d{6,14}$"
+      threshold: 0.95
+
+  # Positive amount validation
+  - rule_id: "BIZ_AMOUNT_001"
+    rule_name: "Positive Transaction Amount"
+    category: "validity"
+    description: "Transaction amounts must be positive (credits handled separately)"
+    column_name: "transaction_amount"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "range_check.sql.j2"
+    rationale: "Negative amounts in transaction records indicate data corruption or ETL bugs"
+    parameters:
+      min_value: 0.0
+      has_min: true
+      has_max: false
+
+  # Status enum validation
+  - rule_id: "BIZ_STATUS_001"
+    rule_name: "Order Status Validity"
+    category: "validity"
+    description: "Order status must be one of the defined lifecycle values"
+    column_name: "order_status"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "enum_values_check.sql.j2"
+    rationale: "Invalid status values break downstream order processing pipelines"
+    parameters:
+      allowed_values:
+        - "PENDING"
+        - "CONFIRMED"
+        - "PROCESSING"
+        - "SHIPPED"
+        - "DELIVERED"
+        - "CANCELLED"
+        - "REFUNDED"
+
+  # Date range constraint
+  - rule_id: "BIZ_DATE_001"
+    rule_name: "No Future Birth Dates"
+    category: "consistency"
+    description: "Customer birth dates must not be in the future"
+    column_name: "date_of_birth"
+    severity: "WARN"
+    threshold: 0.01
+    execution_frequency: "daily"
+    sql_template: "range_check.sql.j2"
+    rationale: "Future birth dates indicate data entry errors in customer onboarding"
+    parameters:
+      has_min: false
+      has_max: true
+      max_value: "CURRENT_DATE()"
+
+  # Country code lookup
+  - rule_id: "BIZ_COUNTRY_001"
+    rule_name: "Valid ISO Country Code"
+    category: "validity"
+    description: "Country codes must be valid ISO 3166-1 alpha-2 codes"
+    column_name: "country_code"
+    severity: "INFO"
+    threshold: 0.98
+    execution_frequency: "weekly"
+    sql_template: "enum_values_check.sql.j2"
+    rationale: "Invalid country codes affect geo-segmentation and compliance reporting"
+    parameters:
+      allowed_values:
+        - "US", "GB", "CA", "AU", "DE", "FR", "IN", "JP", "CN", "BR"
+        - "IT", "ES", "MX", "KR", "NL", "SE", "NO", "DK", "FI", "CH"
+
+  # PII masking verification (checks for unmasked PII patterns in non-PII tables)
+  - rule_id: "BIZ_PII_001"
+    rule_name: "PII Masking Verification"
+    category: "validity"
+    description: "Verify that this column does not contain raw (unmasked) SSN patterns"
+    column_name: "masked_ssn"
+    severity: "FAIL"
+    threshold: 0.0
+    execution_frequency: "daily"
+    sql_template: "validity_regex_check.sql.j2"
+    rationale: "Unmasked SSNs in reporting tables violate PII/GDPR data governance policies"
+    parameters:
+      regex_pattern: "^XXX-XX-\\d{4}$"
+      threshold: 1.0

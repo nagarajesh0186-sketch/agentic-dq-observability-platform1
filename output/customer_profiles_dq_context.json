@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "description": "Business DQ context for customer_profiles table — upload this in the New Workflow > Business Context file picker",
+    "table": "customer_profiles",
+    "row_count_approx": 30,
+    "last_known_data_date": "2024-11-03",
+    "domain": "retail_banking"
+  },
+
+  "table_description": "Core customer master table for a retail banking platform. Each row represents one registered customer. Used by credit risk, KYC compliance, product eligibility, and marketing teams. Data freshness SLA is 24 hours during business hours.",
+
+  "schema": {
+    "customer_id": {
+      "type": "INT64",
+      "description": "Unique customer identifier. Must be globally unique — no duplicates allowed.",
+      "constraints": ["NOT NULL", "UNIQUE", "PRIMARY KEY surrogate"],
+      "valid_range": "positive integers only"
+    },
+    "first_name": {
+      "type": "STRING",
+      "description": "Customer legal first name.",
+      "constraints": ["NOT NULL", "NOT EMPTY", "length 1–100"]
+    },
+    "last_name": {
+      "type": "STRING",
+      "description": "Customer legal last name.",
+      "constraints": ["NOT NULL", "NOT EMPTY", "length 1–100"]
+    },
+    "email": {
+      "type": "STRING",
+      "description": "Primary contact email address. Must be unique per customer.",
+      "constraints": ["NOT NULL", "UNIQUE", "valid RFC-5321 email format"],
+      "regex": "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+    },
+    "phone_number": {
+      "type": "STRING",
+      "description": "International E.164 phone number including country code.",
+      "constraints": ["nullable"],
+      "regex": "^\\+?[1-9]\\d{7,14}$"
+    },
+    "date_of_birth": {
+      "type": "DATE",
+      "description": "Customer date of birth. Customers must be at least 18 years old at registration. Maximum age enforced at 120 years.",
+      "constraints": ["NOT NULL"],
+      "valid_min": "1900-01-01"
+    },
+    "gender": {
+      "type": "STRING",
+      "description": "Customer self-reported gender identity.",
+      "allowed_values": ["Male", "Female", "Non-binary", "Prefer not to say"],
+      "constraints": ["nullable"]
+    },
+    "country_code": {
+      "type": "STRING",
+      "description": "ISO 3166-1 alpha-2 country code of customer residence. Must be exactly 2 uppercase letters AND in the supported countries list.",
+      "regex": "^[A-Z]{2}$",
+      "allowed_values": ["US", "GB", "IN", "AU", "CA", "DE", "FR", "SG"],
+      "constraints": ["NOT NULL"]
+     },
+    "credit_score": {
+      "type": "INT64",
+      "description": "FICO-style credit score. Standard range is 300–850. Scores below 580 are considered poor, 580–669 fair, 670–739 good, 740–799 very good, 800+ exceptional.",
+      "valid_min": 300,
+      "valid_max": 850,
+      "constraints": ["nullable — NULL means not yet scored"],
+      "tiers": {
+        "poor": "300–579",
+        "fair": "580–669",
+        "good": "670–739",
+        "very_good": "740–799",
+        "exceptional": "800–850"
+      },
+      "business_rule": "A credit_score of NULL is acceptable (unscored customer). Any non-null score must be in [300, 850]."
+    },
+    "account_balance": {
+      "type": "FLOAT64",
+      "description": "Current account balance in USD. Cannot be negative for standard accounts.",
+      "valid_min": 0.0,
+      "constraints": ["NOT NULL"]
+    },
+    "account_status": {
+      "type": "STRING",
+      "description": "Current lifecycle status of the customer account.",
+      "allowed_values": ["active", "suspended", "closed", "pending", "frozen"],
+      "constraints": ["NOT NULL"]
+    },
+    "created_at": {
+      "type": "TIMESTAMP",
+      "description": "UTC timestamp when the customer record was created.",
+      "constraints": ["NOT NULL"],
+      "sla": "Must be within 24 hours of current time for active monitoring. Last record is from 2024-11-03 — table is ~13,480 hours stale."
+    },
+    "kyc_status": {
+      "type": "STRING",
+      "description": "Know Your Customer verification status."
+      },
+    "loan_amount": {
+      "type": "FLOAT64",
+      "description": "Outstanding loan balance in USD. NULL means no active loan."
+      }
+  }
+}
