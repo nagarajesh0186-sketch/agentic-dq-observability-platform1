@@ -129,6 +129,10 @@ Write column references directly without any table prefix:
   WRONG:   "t1.`refund_amount` > t1.`order_amount`"
   CORRECT: "`payment_status` = 'FAILED' AND `refund_amount` > 0"
   WRONG:   "s.`payment_status` = 'FAILED' AND s.`refund_amount` > 0"
+CRITICAL: NEVER use the DIV operator in fail_condition.
+Use regular division instead: `column1` / `column2`
+  CORRECT: "`order_amount` / 100 > 10"
+  WRONG:   "`order_amount` DIV 100 > 10"
 
 For `integrity` FK rules, also set `column_name` to the source FK column on
 THIS table (not the referenced column).

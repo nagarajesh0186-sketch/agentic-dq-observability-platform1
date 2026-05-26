@@ -711,8 +711,15 @@ class DQSQLGenerator:
         
         # Fix table alias references — remove t1., t2., s., r. etc
         fail_cond = re.sub(r'\bt\d+\.', '', fail_cond)
-        fail_cond = re.sub(r'\b[a-zA-Z]\w*\.`', '`', fail_cond)    
-
+        fail_cond = re.sub(r'\b[a-zA-Z]\w*\.`', '`', fail_cond)
+        
+        # Fix DIV operator — not supported in BQ stored procedures
+        fail_cond = re.sub(
+            r'(\w+)\s+DIV\s+(\w+)',
+            r'CAST(\1 / \2 AS INT64)',
+            fail_cond,
+            flags=re.IGNORECASE,   
+        )
         src = _table_ref(rule.project_id, rule.dataset_name, rule.table_name)
         threshold_pct = float(params.get("threshold", rule.threshold or 0.0))
 
