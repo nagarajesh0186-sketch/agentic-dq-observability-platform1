@@ -124,3 +124,29 @@ async def get_monitoring_status(
             "approval_2_status": state.approval_2_status.value,
         },
     )
+
+
+@router.get(
+    "/dag-spec/{session_id}",
+    response_model=APIResponse,
+    summary="Get DAG specification",
+    description="Retrieve the JSON DAG specification generated for a session.",
+)
+async def get_dag_spec(
+    session_id: str,
+    _: str = Depends(verify_api_key),
+) -> APIResponse:
+    """Return the JSON DAG spec for a session."""
+    try:
+        from tools.airflow.dag_orchestrator import DAGOrchestrator
+        orch = DAGOrchestrator()
+        spec = await orch.get_dag_spec(session_id)
+        if not spec:
+            return APIResponse(
+                success=False,
+                data={},
+                message=f"No DAG spec found for session {session_id}",
+            )
+        return APIResponse(success=True, data={"spec": spec})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

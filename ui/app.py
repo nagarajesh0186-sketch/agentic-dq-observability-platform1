@@ -1327,8 +1327,49 @@ elif page == "Approvals":
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── DAG Specification ──────────────────────────────────────────
+    if cp1 == "approved":
+        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+        section_heading("DAG Specification", "JSON spec generated before DAG deployment", border_color="#0891b2")
+        spec_resp = api_get(f"/api/v1/monitoring/dag-spec/{session_id}")
+        spec_data = spec_resp.get("data", {}).get("spec", {}) if spec_resp.get("success") else {}
+        if spec_data:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Tasks", len(spec_data.get("tasks", [])))
+            col2.metric("Total Rules", spec_data.get("rules_summary", {}).get("total", 0))
+            col3.metric("Schedule", spec_data.get("schedule", {}).get("description", "—"))
+            st.markdown("<br>", unsafe_allow_html=True)
+            section_heading("Tasks & Dependencies", border_color="#0891b2")
+            for task in spec_data.get("tasks", []):
+                with st.expander(f"📋 {task['task_id']} — {task['type']}"):
+                    st.markdown(f"**Description:** {task['description']}")
+                    st.markdown(f"**SQL Location:** `{task['sql_location']}`")
+                    st.code(task['sql'], language="sql")
+                    if task['dependencies']:
+                        st.markdown(f"**Depends on:** {', '.join(task['dependencies'])}")
+                    if task['rules_included']:
+                        st.markdown(f"**Rules included:** {task['rules_included']}")
+            st.markdown("<br>", unsafe_allow_html=True)
+            section_heading("Rule Inventory", border_color="#0891b2")
+            rules_summary = spec_data.get("rules_summary", {})
+            rc1, rc2, rc3 = st.columns(3)
+            rc1.metric("Technical Rules", rules_summary.get("technical", 0))
+            rc2.metric("Business Rules", rules_summary.get("business", 0))
+            rc3.metric("Results Table", "dq_results")
+            with st.expander("View full rule inventory"):
+                df_inv = pd.DataFrame(spec_data.get("rule_inventory", []))
+                if not df_inv.empty:
+                    st.dataframe(df_inv, use_container_width=True, height=300)
+            with st.expander("View raw JSON spec"):
+                st.json(spec_data)
+        else:
+            st.caption("No DAG spec available yet — run pipeline and approve CP1 first.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # ── Run DQ Checks (only when CP1 approved) ────────────────────────
     if cp1 == "approved":
+    
+    
         st.markdown('<div class="dq-card">', unsafe_allow_html=True)
         section_heading("Execute DQ Checks",
                         "Run the stored procedure and write results to BigQuery")
