@@ -137,25 +137,10 @@ class DAGOrchestrator:
         table_id = f"{settings.gcp.project_id}.{settings.gcp.dq_dataset}.dq_dag_specs"
 
         try:
-            # Ensure table exists
-            ddl = f"""
-            CREATE TABLE IF NOT EXISTS `{table_id}` (
-                session_id STRING NOT NULL,
-                dag_id STRING NOT NULL,
-                table_name STRING,
-                spec_json JSON,
-                generated_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP NOT NULL
-            )
-            PARTITION BY DATE(created_at)
-            CLUSTER BY session_id, dag_id
-            """
-            await bq.execute_ddl(ddl)
-
             rows = [{
                 "session_id": session_id,
                 "dag_id": spec["dag_id"],
-                "table_name": spec["table_name"],
+                "table_name": spec.get("table_name", ""),
                 "spec_json": json.dumps(spec),
                 "generated_at": spec["generated_at"],
                 "created_at": datetime.now(timezone.utc).isoformat(),

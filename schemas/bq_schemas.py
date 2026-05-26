@@ -130,6 +130,14 @@ DQ_MONITORING_CONFIG_SCHEMA: list[bigquery.SchemaField] = [
     bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
 ]
 
+DQ_DAG_SPECS_SCHEMA: list[bigquery.SchemaField] = [
+    bigquery.SchemaField("session_id", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("dag_id", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("table_name", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("spec_json", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("generated_at", "TIMESTAMP", mode="NULLABLE"),
+    bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+]
 # ---------------------------------------------------------------------------
 # Table configuration mapping
 # ---------------------------------------------------------------------------
@@ -142,6 +150,7 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
     "dq_audit_log": DQ_AUDIT_LOG_SCHEMA,
     "dq_execution_log": DQ_EXECUTION_LOG_SCHEMA,
     "dq_monitoring_config": DQ_MONITORING_CONFIG_SCHEMA,
+    "dq_dag_specs": DQ_DAG_SPECS_SCHEMA,
 }
 
 # ---------------------------------------------------------------------------
@@ -292,6 +301,20 @@ CREATE TABLE IF NOT EXISTS `{project}.{dataset}.dq_monitoring_config` (
 PARTITION BY DATE(created_at)
 CLUSTER BY table_name, enabled;
 """,
+
+"dq_dag_specs": """
+CREATE TABLE IF NOT EXISTS `{project}.{dataset}.dq_dag_specs` (
+    session_id    STRING    NOT NULL,
+    dag_id        STRING    NOT NULL,
+    table_name    STRING,
+    spec_json     STRING,
+    generated_at  TIMESTAMP,
+    created_at    TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY session_id, dag_id;
+""",
+
 }
 
 # ---------------------------------------------------------------------------
