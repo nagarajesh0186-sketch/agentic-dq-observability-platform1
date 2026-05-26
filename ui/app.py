@@ -1532,7 +1532,6 @@ elif page == "Approvals":
 # PAGE: OBSERVABILITY DASHBOARD
 # ══════════════════════════════════════════════════════════════════════
 elif page == "Observability":
-    # ── Toolbar ────────────────────────────────────────────────────────
     tb1, tb2, _ = st.columns([0.9, 1.3, 6])
     if tb1.button("↻  Refresh"):
         st.rerun()
@@ -1544,218 +1543,319 @@ elif page == "Observability":
         icon="▣",
     )
 
-    # ── KPI row ────────────────────────────────────────────────────────
-    kpi_resp = api_get("/api/v1/reporting/kpi")
-    kpi = kpi_resp.get("data", {}) if kpi_resp.get("success") else {}
+    tab_dq, tab_obs = st.tabs(["🏢  Executive Dashboard", "📊  DQ Observability"])
 
-    c1, c2, c3, c4 = st.columns(4)
-    if kpi:
-        pr  = kpi.get("pass_rate_pct", 0)
-        hs  = kpi.get("health_score", 0)
-        cf  = kpi.get("critical_failures", 0)
-        tot = kpi.get("total_checks", 0)
+    # ── EXECUTIVE DASHBOARD ────────────────────────────────────────────
+    with tab_dq:
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        kpi_resp = api_get("/api/v1/reporting/kpi")
+        kpi = kpi_resp.get("data", {}) if kpi_resp.get("success") else {}
+
+        pr     = kpi.get("pass_rate_pct", 0) or 0
+        hs     = kpi.get("health_score", 0) or 0
+        cf     = kpi.get("critical_failures", 0) or 0
+        tot    = kpi.get("total_checks", 0) or 0
+        passed = kpi.get("passed_checks", 0) or 0
+        failed_kpi = kpi.get("failed_checks", 0) or 0
 
         hs_color = "#10b981" if hs >= 80 else ("#f59e0b" if hs >= 60 else "#ef4444")
         pr_color = "#10b981" if pr >= 80 else ("#f59e0b" if pr >= 60 else "#ef4444")
-        cf_color = "#10b981" if cf == 0  else "#ef4444"
-        pr_trend = "up" if pr >= 80 else ("flat" if pr >= 60 else "down")
+        cf_color = "#10b981" if cf == 0 else "#ef4444"
 
-        c1.markdown(kpi_tile(
-            "Pass Rate", f"{pr:.1f}%",
-            delta=f"{pr-80:+.1f}% vs target",
-            trend=pr_trend, accent=pr_color, icon="✓",
-        ), unsafe_allow_html=True)
-        c2.markdown(kpi_tile(
-            "Health Score", f"{hs:.0f}",
-            help_text="out of 100", accent=hs_color, icon="◈",
-        ), unsafe_allow_html=True)
-        c3.markdown(kpi_tile(
-            "Critical Failures", str(cf),
-            delta="All clear" if cf == 0 else f"{cf} need attention",
-            trend="flat" if cf == 0 else "down",
-            accent=cf_color, icon="⚠",
-        ), unsafe_allow_html=True)
-        c4.markdown(kpi_tile(
-            "Total Checks", str(tot),
-            help_text="rules evaluated",
-            accent="#4f46e5", icon="⊞",
-        ), unsafe_allow_html=True)
-    else:
-        for col, lbl, ic in zip(
-            [c1, c2, c3, c4],
-            ["Pass Rate", "Health Score", "Critical Failures", "Total Checks"],
-            ["✓", "◈", "⚠", "⊞"],
-        ):
-            col.markdown(kpi_tile(lbl, "—", accent="#9ca3af", icon=ic), unsafe_allow_html=True)
-        st.info("No data yet. Execute DQ checks from the **Approvals** page.", icon="ℹ️")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Active Failures ────────────────────────────────────────────────
-    st.markdown('<div class="dq-card">', unsafe_allow_html=True)
-    failed_resp = api_get("/api/v1/reporting/failed-rules")
-    failed_data = failed_resp.get("data", {}).get("rules", []) if failed_resp.get("success") else []
-
-    section_heading(
-        "Active Failures",
-        f"Last 7 days · {len(failed_data)} open issue(s) · from v_dq_failed_rules",
-        border_color="#ef4444",
-    )
-
-    if failed_data:
-        df_f = pd.DataFrame(failed_data)
-        show_f = [c for c in [
-            "severity", "table_name", "column_name", "rule_type",
-            "observed_value", "expected_value", "failure_count", "hours_open", "execution_time",
-        ] if c in df_f.columns]
-
-        def _sev_style(val: str) -> str:
-            return {
-                "FAIL": "background:#fef2f2;color:#dc2626;font-weight:600",
-                "WARN": "background:#fffbeb;color:#b45309;font-weight:600",
-            }.get(val, "")
-
-        styled = df_f[show_f].style.map(_sev_style, subset=["severity"]) if "severity" in df_f.columns else df_f[show_f]
-        st.dataframe(styled, use_container_width=True, height=320)
-
-        crit = sum(1 for r in failed_data if r.get("severity") == "FAIL")
-        warn = sum(1 for r in failed_data if r.get("severity") == "WARN")
+        # Health score banner
         st.markdown(
-            f'<div style="margin-top:0.5rem;font-size:0.78rem;color:#64748b">'
-            f'{badge("FAIL")} {crit} critical &nbsp;&nbsp; {badge("WARN")} {warn} warnings'
+            f'<div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);'
+            f'border-radius:16px;padding:2rem 2.5rem;margin-bottom:1.5rem;'
+            f'display:flex;align-items:center;justify-content:space-between;gap:2rem">'
+            f'<div>'
+            f'<div style="font-size:0.75rem;font-weight:600;color:#94a3b8;'
+            f'text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Platform Health Score</div>'
+            f'<div style="font-size:3.5rem;font-weight:800;color:{hs_color};letter-spacing:-0.04em;line-height:1">{hs:.0f}</div>'
+            f'<div style="font-size:0.9rem;color:#64748b;margin-top:0.4rem">out of 100</div>'
+            f'</div>'
+            f'<div style="text-align:center">'
+            f'<div style="font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Status</div>'
+            f'<div style="font-size:1.3rem;font-weight:700;color:#f1f5f9">{"✅ Healthy" if hs >= 80 else ("⚠️ At Risk" if hs >= 60 else "🚨 Critical")}</div>'
+            f'<div style="font-size:0.85rem;color:#64748b;margin-top:0.3rem">{passed} passed · {failed_kpi} failed · {tot} total</div>'
+            f'</div>'
+            f'<div style="text-align:right">'
+            f'<div style="font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Pass Rate</div>'
+            f'<div style="font-size:2.5rem;font-weight:800;color:{pr_color};letter-spacing:-0.03em">{pr:.1f}%</div>'
+            f'<div style="font-size:0.85rem;color:#64748b;margin-top:0.3rem">{"Above target ✓" if pr >= 80 else "Below 80% target"}</div>'
+            f'</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
-    else:
-        empty_state(
-            "No active failures",
-            sub="All DQ checks passed in the last 7 days.",
-            icon="✓",
-            success=True,
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Table Health + Trend ───────────────────────────────────────────
-    col_h, col_t = st.columns([3, 2])
+        e1, e2, e3, e4 = st.columns(4)
+        e1.markdown(kpi_tile("Total Checks", str(tot), accent="#4f46e5", icon="⊞"), unsafe_allow_html=True)
+        e2.markdown(kpi_tile("Passed", str(passed), accent="#10b981", icon="✓"), unsafe_allow_html=True)
+        e3.markdown(kpi_tile("Failed", str(failed_kpi), accent="#ef4444", icon="✕"), unsafe_allow_html=True)
+        e4.markdown(kpi_tile("Critical Failures", str(cf),
+            delta="All clear ✓" if cf == 0 else f"{cf} need attention",
+            accent=cf_color, icon="⚠"), unsafe_allow_html=True)
 
-    with col_h:
-        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
-        health_resp = api_get("/api/v1/reporting/health")
-        health_data = health_resp.get("data", {}).get("tables", []) if health_resp.get("success") else []
-        section_heading("Table Health", "v_dq_table_health — latest run per table",
-                        border_color="#6366f1")
-        if health_data:
-            df_h = pd.DataFrame(health_data)
-            if "health_score" in df_h.columns:
-                df_h = df_h.sort_values("health_score", ascending=True)
-            show_h = [c for c in ["table_name","health_score","pass_rate_pct",
-                                   "total_checks","passed","failed",
-                                   "critical_failures","hours_since_last_run"] if c in df_h.columns]
+        st.markdown("<br>", unsafe_allow_html=True)
 
-            def _hs_style(val):
-                if isinstance(val, (int, float)):
-                    if val < 60:  return "color:#dc2626;font-weight:700"
-                    if val < 80:  return "color:#d97706;font-weight:600"
-                    return "color:#15803d;font-weight:600"
-                return ""
+        exec_col1, exec_col2 = st.columns(2)
 
-            hs_cols = [c for c in ["health_score","pass_rate_pct"] if c in df_h.columns]
-            st.dataframe(
-                df_h[show_h].style.map(_hs_style, subset=hs_cols) if hs_cols else df_h[show_h],
-                use_container_width=True, height=280,
+        with exec_col1:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            section_heading("Rule Coverage", "Technical vs Business DQ rules", border_color="#6366f1")
+            tech_resp_e = api_get("/api/v1/reporting/technical-health")
+            tech_data_e = tech_resp_e.get("data", {}).get("tables", []) if tech_resp_e.get("success") else []
+            biz_resp_e  = api_get("/api/v1/reporting/business-health")
+            biz_data_e  = biz_resp_e.get("data", {}).get("tables", []) if biz_resp_e.get("success") else []
+            tech_total  = sum(t.get("total_checks", 0) for t in tech_data_e)
+            tech_passed = sum(t.get("passed", 0) for t in tech_data_e)
+            biz_total   = sum(t.get("total_checks", 0) for t in biz_data_e)
+            biz_passed  = sum(t.get("passed", 0) for t in biz_data_e)
+            tech_rate   = round(tech_passed / tech_total * 100, 1) if tech_total else 0
+            biz_rate    = round(biz_passed  / biz_total  * 100, 1) if biz_total  else 0
+            st.markdown(
+                f'<div style="display:flex;flex-direction:column;gap:1.25rem;margin-top:0.5rem">'
+                f'<div>'
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:0.4rem">'
+                f'<span style="font-size:0.85rem;font-weight:600;color:#374151">🔧 Technical Rules</span>'
+                f'<span style="font-size:0.85rem;font-weight:700;color:#4f46e5">{tech_rate:.0f}%</span>'
+                f'</div>'
+                f'<div style="background:#e5e7eb;border-radius:99px;height:8px">'
+                f'<div style="background:#4f46e5;width:{tech_rate}%;height:8px;border-radius:99px"></div>'
+                f'</div>'
+                f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:0.3rem">{tech_passed}/{tech_total} checks passing</div>'
+                f'</div>'
+                f'<div>'
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:0.4rem">'
+                f'<span style="font-size:0.85rem;font-weight:600;color:#374151">🤖 Business Rules (AI)</span>'
+                f'<span style="font-size:0.85rem;font-weight:700;color:#7c3aed">{biz_rate:.0f}%</span>'
+                f'</div>'
+                f'<div style="background:#e5e7eb;border-radius:99px;height:8px">'
+                f'<div style="background:#7c3aed;width:{biz_rate}%;height:8px;border-radius:99px"></div>'
+                f'</div>'
+                f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:0.3rem">{biz_passed}/{biz_total} checks passing</div>'
+                f'</div>'
+                f'</div>',
+                unsafe_allow_html=True,
             )
-            total_failed = sum(t.get("failed", 0) for t in health_data)
-            if total_failed == 0:
-                st.success(f"All checks passing across {len(health_data)} table(s).")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with exec_col2:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            section_heading("Table Health", "Latest run per table", border_color="#6366f1")
+            health_resp_e = api_get("/api/v1/reporting/health")
+            health_data_e = health_resp_e.get("data", {}).get("tables", []) if health_resp_e.get("success") else []
+            if health_data_e:
+                for t in health_data_e:
+                    hs_t    = t.get("health_score", 0) or 0
+                    color_t = "#10b981" if hs_t >= 80 else ("#f59e0b" if hs_t >= 60 else "#ef4444")
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid #f3f4f6">'
+                        f'<div>'
+                        f'<div style="font-size:0.85rem;font-weight:600;color:#1e293b">{t.get("table_name","")}</div>'
+                        f'<div style="font-size:0.72rem;color:#9ca3af">{t.get("passed",0)}/{t.get("total_checks",0)} passing</div>'
+                        f'</div>'
+                        f'<div style="font-size:1.2rem;font-weight:700;color:{color_t}">{hs_t:.0f}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
             else:
-                st.error(f"{total_failed} failure(s) across {len(health_data)} table(s).")
-        else:
-            st.caption("No table health data available yet.")
-        st.markdown('</div>', unsafe_allow_html=True)
+                st.caption("No table health data yet.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_t:
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        exec_col3, exec_col4 = st.columns([3, 2])
+
+        with exec_col3:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            section_heading("Pass Rate Trend", f"Last {trend_days} days", border_color="#0891b2")
+            trend_resp_e = api_get(f"/api/v1/reporting/trends?days={trend_days}")
+            trend_data_e = trend_resp_e.get("data", {}).get("trends", []) if trend_resp_e.get("success") else []
+            if trend_data_e:
+                df_te = pd.DataFrame(trend_data_e)
+                if "run_date" in df_te.columns and "pass_rate_pct" in df_te.columns:
+                    df_te["run_date"] = pd.to_datetime(df_te["run_date"])
+                    pivot_e = df_te.groupby("run_date")["pass_rate_pct"].mean().reset_index()
+                    st.line_chart(pivot_e.set_index("run_date")["pass_rate_pct"], height=220, color="#0891b2")
+            else:
+                st.caption("No trend data yet.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with exec_col4:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            section_heading("Top Failures", "Most critical issues", border_color="#ef4444")
+            failed_resp_e = api_get("/api/v1/reporting/failed-rules")
+            failed_data_e = failed_resp_e.get("data", {}).get("rules", []) if failed_resp_e.get("success") else []
+            if failed_data_e:
+                for fe in failed_data_e[:5]:
+                    sev_e = fe.get("severity", "WARN")
+                    sev_color_e = "#ef4444" if sev_e == "FAIL" else "#f59e0b"
+                    st.markdown(
+                        f'<div style="padding:0.6rem 0;border-bottom:1px solid #f3f4f6">'
+                        f'<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.2rem">'
+                        f'<span style="width:8px;height:8px;border-radius:50%;background:{sev_color_e};flex-shrink:0"></span>'
+                        f'<span style="font-size:0.82rem;font-weight:600;color:#1e293b">{fe.get("rule_type","").upper()}</span>'
+                        f'</div>'
+                        f'<div style="font-size:0.75rem;color:#6b7280;padding-left:1.25rem">'
+                        f'{fe.get("table_name","")} · {fe.get("column_name","") or "table-level"}</div>'
+                        f'<div style="font-size:0.72rem;color:#9ca3af;padding-left:1.25rem">'
+                        f'{str(fe.get("observed_value",""))[:50]}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                empty_state("No active failures", icon="✓", success=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         st.markdown('<div class="dq-card">', unsafe_allow_html=True)
-        trend_resp = api_get(f"/api/v1/reporting/trends?days={trend_days}")
-        trend_data = trend_resp.get("data", {}).get("trends", []) if trend_resp.get("success") else []
-        section_heading(f"Pass Rate Trend", f"Last {trend_days} days · v_dq_trend_analysis",
-                        border_color="#6366f1")
-        if trend_data:
-            df_t = pd.DataFrame(trend_data)
-            if "run_date" in df_t.columns and "pass_rate_pct" in df_t.columns:
-                df_t["run_date"] = pd.to_datetime(df_t["run_date"])
-                pivot = df_t.groupby("run_date")["pass_rate_pct"].mean().reset_index()
-                st.line_chart(pivot.set_index("run_date")["pass_rate_pct"], height=250,
-                              color="#6366f1")
-        else:
-            st.caption("No trend data available yet.")
+        section_heading("Pipeline & Ingestion Status", "DAG health overview", border_color="#f59e0b")
+        fresh_resp_e = api_get("/api/v1/reporting/freshness")
+        fresh_data_e = fresh_resp_e.get("data", {}).get("tables", []) if fresh_resp_e.get("success") else []
+        pip1, pip2, pip3 = st.columns(3)
+        all_healthy_e = all(t.get("freshness_health") == "HEALTHY" for t in fresh_data_e) if fresh_data_e else True
+        pip1.markdown(kpi_tile("Data Freshness", "HEALTHY" if all_healthy_e else "AT RISK", accent="#f59e0b", icon="🕐"), unsafe_allow_html=True)
+        pip2.markdown(kpi_tile("SLA Breaches", str(sum(1 for t in fresh_data_e if t.get("sla_status") == "FAIL")), accent="#ef4444", icon="⚡"), unsafe_allow_html=True)
+        pip3.markdown(kpi_tile("Tables Monitored", str(len(health_data_e)), accent="#4f46e5", icon="◈"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Freshness Report ───────────────────────────────────────────────
-    st.markdown('<div class="dq-card">', unsafe_allow_html=True)
-    fresh_resp = api_get("/api/v1/reporting/freshness")
-    fresh_data = fresh_resp.get("data", {}).get("tables", []) if fresh_resp.get("success") else []
-    section_heading("Data Freshness", "SLA lag per table · v_dq_freshness_report",
-                    border_color="#f59e0b")
-    if fresh_data:
-        df_fr = pd.DataFrame(fresh_data)
-        show_fr = [c for c in ["table_name","freshness_health","sla_status",
-                                "current_lag","sla_max_lag_hours","last_checked_at"] if c in df_fr.columns]
+    # ── DQ OBSERVABILITY TAB ───────────────────────────────────────────
+    with tab_obs:
+        kpi_resp2 = api_get("/api/v1/reporting/kpi")
+        kpi2 = kpi_resp2.get("data", {}) if kpi_resp2.get("success") else {}
 
-        def _fresh_style(val: str) -> str:
-            return {
-                "HEALTHY":    "background:#f0fdf4;color:#15803d;font-weight:600",
-                "AT_RISK":    "background:#fffbeb;color:#b45309;font-weight:600",
-                "SLA_BREACH": "background:#fef2f2;color:#dc2626;font-weight:600",
-            }.get(val, "")
-
-        styled_fr = (
-            df_fr[show_fr].style.map(_fresh_style, subset=["freshness_health"])
-            if "freshness_health" in df_fr.columns else df_fr[show_fr]
-        )
-        st.dataframe(styled_fr, use_container_width=True, height=220)
-    else:
-        st.caption("No freshness data available yet.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ── Technical vs Business Health ──
-    st.markdown('<div class="dq-card">', unsafe_allow_html=True)
-    section_heading("Technical DQ vs Business DQ Health", "Rule layer breakdown", border_color="#6366f1")
-
-    tech_col, biz_col = st.columns(2)
-
-    with tech_col:
-        st.markdown("#### 🔧 Technical Rules")
-        tech_resp = api_get("/api/v1/reporting/technical-health")
-        tech_data = tech_resp.get("data", {}).get("tables", []) if tech_resp.get("success") else []
-        if tech_data:
-            df_tech = pd.DataFrame(tech_data)
-            show_t = [c for c in ["table_name","health_score","pass_rate_pct","total_checks",
-                                   "passed","failed","completeness_checks","uniqueness_checks",
-                                   "validity_checks","freshness_checks"] if c in df_tech.columns]
-            st.dataframe(df_tech[show_t], use_container_width=True, height=200)
-            avg_health = df_tech["health_score"].mean() if "health_score" in df_tech.columns else 0
-            color = "#10b981" if avg_health >= 80 else ("#f59e0b" if avg_health >= 60 else "#ef4444")
-            st.markdown(f'<div style="font-size:0.9rem;font-weight:600;color:{color}">Avg Health: {avg_health:.1f}/100</div>', unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        if kpi2:
+            pr2  = kpi2.get("pass_rate_pct", 0)
+            hs2  = kpi2.get("health_score", 0)
+            cf2  = kpi2.get("critical_failures", 0)
+            tot2 = kpi2.get("total_checks", 0)
+            hs_color2 = "#10b981" if hs2 >= 80 else ("#f59e0b" if hs2 >= 60 else "#ef4444")
+            pr_color2 = "#10b981" if pr2 >= 80 else ("#f59e0b" if pr2 >= 60 else "#ef4444")
+            cf_color2 = "#10b981" if cf2 == 0 else "#ef4444"
+            pr_trend2 = "up" if pr2 >= 80 else ("flat" if pr2 >= 60 else "down")
+            c1.markdown(kpi_tile("Pass Rate", f"{pr2:.1f}%", delta=f"{pr2-80:+.1f}% vs target", trend=pr_trend2, accent=pr_color2, icon="✓"), unsafe_allow_html=True)
+            c2.markdown(kpi_tile("Health Score", f"{hs2:.0f}", help_text="out of 100", accent=hs_color2, icon="◈"), unsafe_allow_html=True)
+            c3.markdown(kpi_tile("Critical Failures", str(cf2), delta="All clear" if cf2 == 0 else f"{cf2} need attention", trend="flat" if cf2 == 0 else "down", accent=cf_color2, icon="⚠"), unsafe_allow_html=True)
+            c4.markdown(kpi_tile("Total Checks", str(tot2), help_text="rules evaluated", accent="#4f46e5", icon="⊞"), unsafe_allow_html=True)
         else:
-            st.caption("No technical rule data yet.")
+            for col, lbl, ic in zip([c1, c2, c3, c4], ["Pass Rate", "Health Score", "Critical Failures", "Total Checks"], ["✓", "◈", "⚠", "⊞"]):
+                col.markdown(kpi_tile(lbl, "—", accent="#9ca3af", icon=ic), unsafe_allow_html=True)
+            st.info("No data yet. Execute DQ checks from the **Approvals** page.", icon="ℹ️")
 
-    with biz_col:
-        st.markdown("#### 🤖 Business Rules (AI + Data-driven)")
-        biz_resp = api_get("/api/v1/reporting/business-health")
-        biz_data = biz_resp.get("data", {}).get("tables", []) if biz_resp.get("success") else []
-        if biz_data:
-            df_biz = pd.DataFrame(biz_data)
-            show_b = [c for c in ["table_name","health_score","pass_rate_pct","total_checks",
-                                   "passed","failed","consistency_checks","integrity_checks",
-                                   "top_failures"] if c in df_biz.columns]
-            st.dataframe(df_biz[show_b], use_container_width=True, height=200)
-            avg_health = df_biz["health_score"].mean() if "health_score" in df_biz.columns else 0
-            color = "#10b981" if avg_health >= 80 else ("#f59e0b" if avg_health >= 60 else "#ef4444")
-            st.markdown(f'<div style="font-size:0.9rem;font-weight:600;color:{color}">Avg Health: {avg_health:.1f}/100</div>', unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+        failed_resp = api_get("/api/v1/reporting/failed-rules")
+        failed_data = failed_resp.get("data", {}).get("rules", []) if failed_resp.get("success") else []
+        section_heading("Active Failures", f"Last 7 days · {len(failed_data)} open issue(s) · from v_dq_failed_rules", border_color="#ef4444")
+        if failed_data:
+            df_f = pd.DataFrame(failed_data)
+            show_f = [c for c in ["severity", "table_name", "column_name", "rule_type", "observed_value", "expected_value", "failure_count", "hours_open", "execution_time"] if c in df_f.columns]
+            def _sev_style(val: str) -> str:
+                return {"FAIL": "background:#fef2f2;color:#dc2626;font-weight:600", "WARN": "background:#fffbeb;color:#b45309;font-weight:600"}.get(val, "")
+            styled = df_f[show_f].style.map(_sev_style, subset=["severity"]) if "severity" in df_f.columns else df_f[show_f]
+            st.dataframe(styled, use_container_width=True, height=320)
+            crit = sum(1 for r in failed_data if r.get("severity") == "FAIL")
+            warn = sum(1 for r in failed_data if r.get("severity") == "WARN")
+            st.markdown(f'<div style="margin-top:0.5rem;font-size:0.78rem;color:#64748b">{badge("FAIL")} {crit} critical &nbsp;&nbsp; {badge("WARN")} {warn} warnings</div>', unsafe_allow_html=True)
         else:
-            st.caption("No business rule data yet.")
+            empty_state("No active failures", sub="All DQ checks passed in the last 7 days.", icon="✓", success=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        col_h, col_t = st.columns([3, 2])
+
+        with col_h:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            health_resp = api_get("/api/v1/reporting/health")
+            health_data = health_resp.get("data", {}).get("tables", []) if health_resp.get("success") else []
+            section_heading("Table Health", "v_dq_table_health — latest run per table", border_color="#6366f1")
+            if health_data:
+                df_h = pd.DataFrame(health_data)
+                if "health_score" in df_h.columns:
+                    df_h = df_h.sort_values("health_score", ascending=True)
+                show_h = [c for c in ["table_name","health_score","pass_rate_pct","total_checks","passed","failed","critical_failures","hours_since_last_run"] if c in df_h.columns]
+                def _hs_style(val):
+                    if isinstance(val, (int, float)):
+                        if val < 60:  return "color:#dc2626;font-weight:700"
+                        if val < 80:  return "color:#d97706;font-weight:600"
+                        return "color:#15803d;font-weight:600"
+                    return ""
+                hs_cols = [c for c in ["health_score","pass_rate_pct"] if c in df_h.columns]
+                st.dataframe(df_h[show_h].style.map(_hs_style, subset=hs_cols) if hs_cols else df_h[show_h], use_container_width=True, height=280)
+                total_failed = sum(t.get("failed", 0) for t in health_data)
+                if total_failed == 0:
+                    st.success(f"All checks passing across {len(health_data)} table(s).")
+                else:
+                    st.error(f"{total_failed} failure(s) across {len(health_data)} table(s).")
+            else:
+                st.caption("No table health data available yet.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with col_t:
+            st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+            trend_resp = api_get(f"/api/v1/reporting/trends?days={trend_days}")
+            trend_data = trend_resp.get("data", {}).get("trends", []) if trend_resp.get("success") else []
+            section_heading(f"Pass Rate Trend", f"Last {trend_days} days · v_dq_trend_analysis", border_color="#6366f1")
+            if trend_data:
+                df_t = pd.DataFrame(trend_data)
+                if "run_date" in df_t.columns and "pass_rate_pct" in df_t.columns:
+                    df_t["run_date"] = pd.to_datetime(df_t["run_date"])
+                    pivot = df_t.groupby("run_date")["pass_rate_pct"].mean().reset_index()
+                    st.line_chart(pivot.set_index("run_date")["pass_rate_pct"], height=250, color="#6366f1")
+            else:
+                st.caption("No trend data available yet.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+        fresh_resp = api_get("/api/v1/reporting/freshness")
+        fresh_data = fresh_resp.get("data", {}).get("tables", []) if fresh_resp.get("success") else []
+        section_heading("Data Freshness", "SLA lag per table · v_dq_freshness_report", border_color="#f59e0b")
+        if fresh_data:
+            df_fr = pd.DataFrame(fresh_data)
+            show_fr = [c for c in ["table_name","freshness_health","sla_status","current_lag","sla_max_lag_hours","last_checked_at"] if c in df_fr.columns]
+            def _fresh_style(val: str) -> str:
+                return {"HEALTHY": "background:#f0fdf4;color:#15803d;font-weight:600", "AT_RISK": "background:#fffbeb;color:#b45309;font-weight:600", "SLA_BREACH": "background:#fef2f2;color:#dc2626;font-weight:600"}.get(val, "")
+            styled_fr = df_fr[show_fr].style.map(_fresh_style, subset=["freshness_health"]) if "freshness_health" in df_fr.columns else df_fr[show_fr]
+            st.dataframe(styled_fr, use_container_width=True, height=220)
+        else:
+            st.caption("No freshness data available yet.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+        section_heading("Technical DQ vs Business DQ Health", "Rule layer breakdown", border_color="#6366f1")
+        tech_col, biz_col = st.columns(2)
+        with tech_col:
+            st.markdown("#### 🔧 Technical Rules")
+            tech_resp = api_get("/api/v1/reporting/technical-health")
+            tech_data = tech_resp.get("data", {}).get("tables", []) if tech_resp.get("success") else []
+            if tech_data:
+                df_tech = pd.DataFrame(tech_data)
+                show_t = [c for c in ["table_name","health_score","pass_rate_pct","total_checks","passed","failed","completeness_checks","uniqueness_checks","validity_checks","freshness_checks"] if c in df_tech.columns]
+                st.dataframe(df_tech[show_t], use_container_width=True, height=200)
+                avg_health = df_tech["health_score"].mean() if "health_score" in df_tech.columns else 0
+                color = "#10b981" if avg_health >= 80 else ("#f59e0b" if avg_health >= 60 else "#ef4444")
+                st.markdown(f'<div style="font-size:0.9rem;font-weight:600;color:{color}">Avg Health: {avg_health:.1f}/100</div>', unsafe_allow_html=True)
+            else:
+                st.caption("No technical rule data yet.")
+        with biz_col:
+            st.markdown("#### 🤖 Business Rules (AI + Data-driven)")
+            biz_resp = api_get("/api/v1/reporting/business-health")
+            biz_data = biz_resp.get("data", {}).get("tables", []) if biz_resp.get("success") else []
+            if biz_data:
+                df_biz = pd.DataFrame(biz_data)
+                show_b = [c for c in ["table_name","health_score","pass_rate_pct","total_checks","passed","failed","consistency_checks","integrity_checks","top_failures"] if c in df_biz.columns]
+                st.dataframe(df_biz[show_b], use_container_width=True, height=200)
+                avg_health = df_biz["health_score"].mean() if "health_score" in df_biz.columns else 0
+                color = "#10b981" if avg_health >= 80 else ("#f59e0b" if avg_health >= 60 else "#ef4444")
+                st.markdown(f'<div style="font-size:0.9rem;font-weight:600;color:{color}">Avg Health: {avg_health:.1f}/100</div>', unsafe_allow_html=True)
+            else:
+                st.caption("No business rule data yet.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 # ══════════════════════════════════════════════════════════════════════
 # PAGE: SETTINGS
 # ══════════════════════════════════════════════════════════════════════
