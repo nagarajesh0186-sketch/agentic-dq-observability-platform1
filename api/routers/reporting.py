@@ -168,3 +168,86 @@ async def setup_views(_: str = Depends(verify_api_key)) -> APIResponse:
     except Exception as exc:
         logger.error("setup_views_failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    
+    
+
+@router.get(
+    "/token-usage",
+    response_model=APIResponse,
+    summary="Get token usage summary",
+    description="Return Claude API token consumption and cost estimates.",
+)
+async def get_token_usage(
+    days: int = 30,
+    _: str = Depends(verify_api_key),
+) -> APIResponse:
+    """Fetch token usage from dq_token_usage table."""
+    from tools.bigquery.client import get_bq_client
+    from configs.settings import get_settings
+    settings = get_settings()
+    bq = get_bq_client()
+
+    try:
+        # Summary
+        summary_sql = f"""
+            SELECT
+                COUNT(*) AS total_calls,
+                SUM(total_tokens) AS total_tokens,
+                SUM(input_tokens) AS total_input,
+                SUM(output_tokens) AS total_output,
+                ROUND(SUM(estimated_cost_usd), 6) AS total_cost_usd,
+                ROUND(AVG(duration_seconds), 2) AS avg_duration_seconds
+            FROM `{settings.gcp.project_id}.{settings.gcp.dq_dataset}.dq_token_usage`
+            WHERE DATE(created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+        """
+
+        # By agent
+        by_agent_sql = f"""
+            SELECT
+                agent_name,
+                COUNT(*) AS calls,
+                SUM(total_tokens) AS total_tokens,
+                SUM(input_tokens) AS input_tokens,
+                SUM(output_tokens) AS output_tokens,
+                ROUND(SUM(estimated_cost_usd), 6) AS cost_usd,
+                ROUND(AVG(duration_seconds), 2) AS avg_duration_seconds
+            FROM `{settings.gcp.project_id}.{settings.gcp.dq_dataset}.dq_token_usage`
+            WHERE DATE(created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+            GROUP BY agent_name
+            ORDER BY cost_usd DESC
+        """
+
+        # Recent calls
+        recent_sql = f"""
+            SELECT
+                FORMAT_TIMESTAMP('%Y-%m-%d %H:%M', created_at) AS created_at,
+                agent_name,
+                model,
+                input_tokens,
+                output_tokens,
+                ROUND(estimated_cost_usd, 6) AS estimated_cost_usd,
+                ROUND(duration_seconds, 2) AS duration_seconds,
+                prompt_preview
+            FROM `{settings.gcp.project_id}.{settings.gcp.dq_dataset}.dq_token_usage`
+            WHERE DATE(created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+            ORDER BY created_at DESC
+            LIMIT 20
+        """
+
+        summary_rows = await bq.execute_query(summary_sql)
+        by_agent_rows = await bq.execute_query(by_agent_sql)
+        recent_rows   = await bq.execute_query(recent_sql)
+
+        return APIResponse(
+            success=True,
+            data={
+                "summary":  summary_rows[0] if summary_rows else {},
+                "by_agent": by_agent_rows,
+                "recent":   recent_rows,
+                "days":     days,
+            },
+        )
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+

@@ -1887,7 +1887,74 @@ elif page == "Settings":
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="dq-card">', unsafe_allow_html=True)
+    section_heading("Token Usage & Cost", "Claude AI API consumption across all agents", border_color="#7c3aed")
+
+    token_resp = api_get("/api/v1/reporting/token-usage")
+    token_data = token_resp.get("data", {}) if token_resp.get("success") else {}
+
+    if token_data:
+        summary  = token_data.get("summary", {})
+        by_agent = token_data.get("by_agent", [])
+        recent   = token_data.get("recent", [])
+
+        t1, t2, t3, t4 = st.columns(4)
+        t1.metric("Total API Calls", summary.get("total_calls", 0))
+        t2.metric("Total Tokens", f"{summary.get('total_tokens', 0):,}")
+        t3.metric("Input Tokens", f"{summary.get('total_input', 0):,}")
+        t4.metric("Output Tokens", f"{summary.get('total_output', 0):,}")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        total_cost = summary.get("total_cost_usd", 0) or 0
+        cost_color = "#10b981" if total_cost < 1 else ("#f59e0b" if total_cost < 5 else "#ef4444")
+        st.markdown(
+            f'<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;'
+            f'padding:1rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem">'
+            f'<div style="font-size:2rem;font-weight:800;color:{cost_color}">${total_cost:.4f}</div>'
+            f'<div>'
+            f'<div style="font-size:0.85rem;font-weight:600;color:#7c3aed">Estimated Total Cost (USD)</div>'
+            f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:0.2rem">'
+            f'Based on Claude Sonnet pricing — $3/1M input · $15/1M output tokens</div>'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+
+        if by_agent:
+            section_heading("Cost by Agent", border_color="#7c3aed")
+            df_agent = pd.DataFrame(by_agent)
+            show_agent = [c for c in ["agent_name", "calls", "total_tokens",
+                                       "input_tokens", "output_tokens",
+                                       "cost_usd", "avg_duration_seconds"] if c in df_agent.columns]
+            st.dataframe(df_agent[show_agent], use_container_width=True, height=200)
+
+        if recent:
+            st.markdown("<br>", unsafe_allow_html=True)
+            section_heading("Recent API Calls", border_color="#7c3aed")
+            df_recent = pd.DataFrame(recent)
+            show_recent = [c for c in ["created_at", "agent_name", "model",
+                                        "input_tokens", "output_tokens",
+                                        "estimated_cost_usd", "duration_seconds",
+                                        "prompt_preview"] if c in df_recent.columns]
+            st.dataframe(df_recent[show_recent], use_container_width=True, height=250)
+    else:
+        st.info("No token usage data yet. Run a pipeline to start tracking API costs.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="dq-card">', unsafe_allow_html=True)
     section_heading("Platform Info")
+    st.markdown("""
+| Component | Details |
+|-----------|---------|
+| LLM Engine | Claude (Anthropic) |
+| Data Warehouse | Google BigQuery |
+| Orchestration | Multi-agent pipeline |
+| API | FastAPI + Pydantic v2 |
+| Dashboard | Streamlit |
+| SP Strategy | Consolidated per-session stored procedure |
+| Version | 2.0.0 |
+""")
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown("""
 | Component | Details |
 |-----------|---------|
