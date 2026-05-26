@@ -166,7 +166,11 @@ class DAGOrchestrator:
             """
             rows = await bq.execute_query(sql)
             if rows:
-                return json.loads(rows[0]["spec_json"])
+                val = rows[0]["spec_json"]
+                # BQ may return already-parsed dict or a string
+                if isinstance(val, dict):
+                    return val
+                return json.loads(val)
         except Exception as exc:
             self._log.warning("dag_spec_fetch_failed", error=str(exc)[:200])
         return None
