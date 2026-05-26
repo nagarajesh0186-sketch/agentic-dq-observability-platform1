@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import anthropic
@@ -14,6 +16,25 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from configs.settings import get_settings
 
 logger = structlog.get_logger(__name__)
+
+# Claude pricing per 1M tokens (as of 2026)
+_PRICING: dict[str, dict[str, float]] = {
+    "claude-sonnet-4-5":            {"input": 3.00,  "output": 15.00},
+    "claude-sonnet-4-20250514":     {"input": 3.00,  "output": 15.00},
+    "claude-opus-4-5":              {"input": 15.00, "output": 75.00},
+    "claude-3-5-sonnet-20241022":   {"input": 3.00,  "output": 15.00},
+    "claude-haiku-4-5-20251001":    {"input": 0.80,  "output": 4.00},
+}
+
+
+def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Estimate cost in USD for a Claude API call."""
+    pricing = _PRICING.get(model, {"input": 3.00, "output": 15.00})
+    return round(
+        (input_tokens / 1_000_000) * pricing["input"]
+        + (output_tokens / 1_000_000) * pricing["output"],
+        6,
+    )
 
 
 class BaseAgent:
@@ -34,6 +55,47 @@ class BaseAgent:
         self._client = anthropic.Anthropic(api_key=settings.anthropic.api_key)
         self._log = logger.bind(agent=agent_name)
 
+    async def _log_token_usage(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        duration_seconds: float,
+        prompt_preview: str = "",
+    ) -> None:
+        """Log token usage and estimated cost to BigQuery dq_token_usage table."""
+        try:
+            from tools.bigquery.client import get_bq_client
+            settings = get_settings()
+            bq = get_bq_client()
+            table_id = f"{settings.gcp.project_id}.{settings.gcp.dq_dataset}.dq_token_usage"
+
+            cost_usd = _estimate_cost(model, input_tokens, output_tokens)
+
+            rows = [{
+                "usage_id": f"usage_{uuid.uuid4().hex[:12]}",
+                "agent_name": self._name,
+                "model": model,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+                "estimated_cost_usd": cost_usd,
+                "duration_seconds": round(duration_seconds, 3),
+                "prompt_preview": prompt_preview[:200] if prompt_preview else "",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }]
+            await bq.insert_rows(table_id, rows)
+            self._log.info(
+                "token_usage_logged",
+                agent=self._name,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+            )
+        except Exception as exc:
+            self._log.warning("token_usage_log_failed", error=str(exc)[:200])
+
     async def _call_claude(
         self,
         prompt: str,
@@ -47,7 +109,6 @@ class BaseAgent:
             content = f"Context:\n{context_str}\n\n{prompt}"
 
         settings = get_settings()
-        # Build model list: primary first, then any fallbacks defined in settings
         models_to_try = [self._model] + [
             m for m in getattr(settings.anthropic, "fallback_models", [])
             if m != self._model
@@ -59,7 +120,6 @@ class BaseAgent:
                 self._log.info("calling_claude", model=model, prompt_preview=prompt[:100])
                 start = time.monotonic()
 
-                # Claude's SDK is sync; run in thread so we don't block the event loop
                 response = await asyncio.to_thread(
                     self._client.messages.create,
                     model=model,
@@ -71,15 +131,30 @@ class BaseAgent:
                 )
 
                 duration = time.monotonic() - start
+                input_tokens  = response.usage.input_tokens
+                output_tokens = response.usage.output_tokens
+                cost_usd      = _estimate_cost(model, input_tokens, output_tokens)
+
                 self._log.info(
                     "claude_response_received",
                     model=model,
                     duration_seconds=round(duration, 2),
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    estimated_cost_usd=cost_usd,
                 )
 
-                # Extract text from the first text block
+                # Log token usage to BigQuery asynchronously (non-blocking)
+                asyncio.create_task(
+                    self._log_token_usage(
+                        model=model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_seconds=duration,
+                        prompt_preview=prompt[:200],
+                    )
+                )
+
                 text = "".join(
                     block.text for block in response.content
                     if block.type == "text"
@@ -93,7 +168,6 @@ class BaseAgent:
                 continue
 
             except anthropic.APIStatusError as exc:
-                # 529 = overloaded, 503 = unavailable
                 if exc.status_code in (503, 529):
                     self._log.warning("claude_unavailable", model=model, status=exc.status_code, trying_next=True, error=str(exc)[:120])
                     last_exc = exc
@@ -119,13 +193,11 @@ class BaseAgent:
 
         text = text.strip()
 
-        # 1. Direct parse
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
-        # 2. Markdown code fence  (```json ... ```)
         json_block = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
         if json_block:
             try:
@@ -133,7 +205,6 @@ class BaseAgent:
             except json.JSONDecodeError:
                 pass
 
-        # 3. Find the outermost { ... } object (handles preamble text)
         start = text.find("{")
         if start != -1:
             depth = 0
@@ -153,7 +224,6 @@ class BaseAgent:
                 except json.JSONDecodeError:
                     pass
 
-        # 4. Array fallback
         arr_match = re.search(r"\[[\s\S]*\]", text)
         if arr_match:
             try:

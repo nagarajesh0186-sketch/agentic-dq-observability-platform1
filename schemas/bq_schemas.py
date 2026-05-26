@@ -138,6 +138,20 @@ DQ_DAG_SPECS_SCHEMA: list[bigquery.SchemaField] = [
     bigquery.SchemaField("generated_at", "TIMESTAMP", mode="NULLABLE"),
     bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
 ]
+    
+DQ_TOKEN_USAGE_SCHEMA: list[bigquery.SchemaField] = [
+    bigquery.SchemaField("usage_id", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("agent_name", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("model", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("input_tokens", "INT64", mode="REQUIRED"),
+    bigquery.SchemaField("output_tokens", "INT64", mode="REQUIRED"),
+    bigquery.SchemaField("total_tokens", "INT64", mode="REQUIRED"),
+    bigquery.SchemaField("estimated_cost_usd", "FLOAT64", mode="REQUIRED"),
+    bigquery.SchemaField("duration_seconds", "FLOAT64", mode="NULLABLE"),
+    bigquery.SchemaField("prompt_preview", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+]
+
 # ---------------------------------------------------------------------------
 # Table configuration mapping
 # ---------------------------------------------------------------------------
@@ -151,6 +165,7 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
     "dq_execution_log": DQ_EXECUTION_LOG_SCHEMA,
     "dq_monitoring_config": DQ_MONITORING_CONFIG_SCHEMA,
     "dq_dag_specs": DQ_DAG_SPECS_SCHEMA,
+    "dq_token_usage": DQ_TOKEN_USAGE_SCHEMA,
 }
 
 # ---------------------------------------------------------------------------
@@ -313,6 +328,23 @@ CREATE TABLE IF NOT EXISTS `{project}.{dataset}.dq_dag_specs` (
 )
 PARTITION BY DATE(created_at)
 CLUSTER BY session_id, dag_id;
+""",
+
+"dq_token_usage": """
+CREATE TABLE IF NOT EXISTS `{project}.{dataset}.dq_token_usage` (
+    usage_id            STRING    NOT NULL,
+    agent_name          STRING    NOT NULL,
+    model               STRING    NOT NULL,
+    input_tokens        INT64     NOT NULL,
+    output_tokens       INT64     NOT NULL,
+    total_tokens        INT64     NOT NULL,
+    estimated_cost_usd  FLOAT64   NOT NULL,
+    duration_seconds    FLOAT64,
+    prompt_preview      STRING,
+    created_at          TIMESTAMP NOT NULL
+)
+PARTITION BY DATE(created_at)
+CLUSTER BY agent_name, model;
 """,
 
 }
