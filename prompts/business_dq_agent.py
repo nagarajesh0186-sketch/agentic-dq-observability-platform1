@@ -123,6 +123,12 @@ the rule deterministically (without calling an LLM again):
 For `consistency` rules, write `fail_condition` as a row-level BigQuery
 expression using backtick-quoted column names that EXIST in the schema above.
 IMPORTANT: Never use TIMESTAMP_SUB with YEAR interval — use DAY instead (e.g. INTERVAL 365 DAY).
+CRITICAL: NEVER use table aliases (t1., t2., s., r., src.) in fail_condition.
+Write column references directly without any table prefix:
+  CORRECT: "`refund_amount` > `order_amount`"
+  WRONG:   "t1.`refund_amount` > t1.`order_amount`"
+  CORRECT: "`payment_status` = 'FAILED' AND `refund_amount` > 0"
+  WRONG:   "s.`payment_status` = 'FAILED' AND s.`refund_amount` > 0"
 
 For `integrity` FK rules, also set `column_name` to the source FK column on
 THIS table (not the referenced column).

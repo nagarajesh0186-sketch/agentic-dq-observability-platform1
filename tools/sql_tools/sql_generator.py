@@ -707,7 +707,11 @@ class DQSQLGenerator:
             lambda m: f'TIMESTAMP_SUB({m.group(1)}, INTERVAL {int(m.group(2)) * 365} DAY)',
             fail_cond,
             flags=re.IGNORECASE,
-        )    
+        )
+        
+        # Fix table alias references — remove t1., t2., s., r. etc
+        fail_cond = re.sub(r'\bt\d+\.', '', fail_cond)
+        fail_cond = re.sub(r'\b[a-zA-Z]\w*\.`', '`', fail_cond)    
 
         src = _table_ref(rule.project_id, rule.dataset_name, rule.table_name)
         threshold_pct = float(params.get("threshold", rule.threshold or 0.0))
