@@ -1954,16 +1954,3 @@ elif page == "Settings":
 | SP Strategy | Consolidated per-session stored procedure |
 | Version | 2.0.0 |
 """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("""
-| Component | Details |
-|-----------|---------|
-| LLM Engine | Claude (Anthropic) |
-| Data Warehouse | Google BigQuery |
-| Orchestration | Multi-agent pipeline |
-| API | FastAPI + Pydantic v2 |
-| Dashboard | Streamlit |
-| SP Strategy | Consolidated per-session stored procedure |
-| Version | 2.0.0 |
-""")
-    st.markdown('</div>', unsafe_allow_html=True)
